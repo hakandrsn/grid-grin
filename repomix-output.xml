@@ -1,0 +1,1791 @@
+This file is a merged representation of a subset of the codebase, containing files not matching ignore patterns, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of a subset of the repository's contents that is considered the most important context.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching these patterns are excluded: assets
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+.agent/rules/block-puzzle-core.md
+.agent/rules/global-standards.md
+.agent/rules/global-ts-standards.md
+.agent/skills/game-architect.md
+.agent/skills/game-mechanics-master/SKILL.md
+.agent/workflows/polish-to-final.md
+.gitignore
+app.json
+app/_layout.tsx
+app/index.tsx
+eas.json
+eslint.config.js
+issues.md
+package.json
+README.md
+src/components/Board.tsx
+src/components/Cell.tsx
+src/components/GameOverOverlay.tsx
+src/components/Piece.tsx
+src/components/PuffExplosion.tsx
+src/components/ScoreBoard.tsx
+src/components/SkiaExplosionLayer.tsx
+src/store/useGameStore.ts
+src/types/index.ts
+src/utils/constants.ts
+src/utils/gameLogic.ts
+tsconfig.json
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path=".agent/rules/block-puzzle-core.md">
+---
+trigger: always_on
+---
+
+# Block Puzzle Final Mechanics
+
+**Goal**: Kusursuz "snapping" ve akıcı "puff" animasyonları.
+
+## Interaction Rules
+
+- **Finger Offset**: Kullanıcı parmağı parçayı kapatmamalı; `PREVIEW_OFFSET_Y` her zaman parmağın en az 220px yukarısında hesaplanmalıdır.
+- **Snapping Logic**: Parça, hedef hücrenin %40'lık alanına girdiğinde mıknatıs etkisiyle (preview) oraya çekilmelidir.
+- **Puff Animation**: Satır/sütun silindiğinde hücreler `150ms` içinde küçülerek yok olmalı; bu esnada grid arka planı (`emptyGrid`) her zaman görünür kalmalıdır.
+
+## Scoring & Progression
+
+- **Streak System**: Arka arkaya yapılan her başarılı hamle, `currentStreak * 1.5` çarpanıyla ödüllendirilmelidir.
+- **GameOver**: `availablePieces` içindeki hiçbir parça board'a sığmadığında `isGameOver` anında tetiklenmelidir.
+</file>
+
+<file path=".agent/rules/global-standards.md">
+---
+trigger: always_on
+---
+
+# Antigravity Global Standards
+
+**Goal**: En yüksek FPS ve en düşük teknik borç ile oyun geliştirme.
+
+## Technical Constraints
+
+- **State Management**: Tüm oyun mantığı (Board, Score, GameState) `src/store/useGameStore.ts` içinde merkezi olarak yönetilmelidir.
+- **UI Performance**:
+  - Board içindeki her `Cell` mutlaka `memo` ile sarmalanmalıdır.
+  - Animasyonlar sadece `react-native-reanimated` (v4+) üzerinden `useSharedValue` ve `useAnimatedStyle` ile yapılmalıdır.
+- **Coordinate Integrity**: Sürükle-bırak işlemlerinde `measureInWindow` kullanılarak mutlak koordinat senkronizasyonu her zaman korunmalıdır.
+</file>
+
+<file path=".agent/rules/global-ts-standards.md">
+---
+trigger: always_on
+---
+
+Dil ve Stack: Her zaman TypeScript kullanılmalı, mobil arayüzlerde React Native + Expo tercih edilmelidir.
+
+State Yönetimi: Karmaşık UI durumları yerine her zaman Zustand store kullanılmalı, "logic" ve "view" katmanları ayrılmalıdır.
+
+Performans: Animasyonlar için react-native-reanimated kullanılmalı ve gereksiz render'ları önlemek için memo ve useSharedValue optimizasyonları zorunlu tutulmalıdır.
+</file>
+
+<file path=".agent/skills/game-architect.md">
+# Antigravity Game Architect Skill
+
+**Description**: Karmaşık oyun motoru güncellemelerini ve performans optimizasyonlarını yönetme yeteneği.
+
+## Capabilities
+
+1. **Logic Implementation**: `src/utils/gameLogic.ts` içindeki silme ve puanlama algoritmalarını `Rules` setine göre hatasız günceller.
+2. **Haptic Service**: `expo-haptics` kullanarak her "snap", "clear" ve "gameover" durumunda doğru titreşim geri bildirimlerini entegre eder.
+3. **Persistence Master**: `AsyncStorage` kullanarak `bestScore` ve `gameState` verilerini kalıcı olarak saklar.
+4. **Animation Tuning**: Reanimated easing fonksiyonlarını (Easing.out(Easing.quad)) kullanarak "yaylanmayan" ama akıcı dönüş animasyonları kurar.
+</file>
+
+<file path=".agent/skills/game-mechanics-master/SKILL.md">
+# Block Puzzle Mechanics Master
+
+**Description**: Grid snapping, score calculation, and piece generation logic management.
+
+## Instructions
+
+- Grid yerleşimi hesaplanırken `Math.round` ile en yakın hücreyi bul.
+- Yeni parça (shape) üretirken `src/utils/constants.ts` içindeki tanımları baz al.
+- Score hesaplamasında streak bonuslarını `processMove` algoritmasına göre uygula.
+
+## Constraints
+
+- Do not modify cell opacity directly without checking if it's a permanent block or a preview.
+- Always verify boardLayout coordinates before updating store state.
+</file>
+
+<file path=".agent/workflows/polish-to-final.md">
+---
+description: Projeyi tamamlanmış, markete çıkmaya hazır hale getirecek iş akışları.
+---
+
+# Workflow: Road to Final Release
+
+**Steps**:
+
+1. **Coordinate Audit**: Board ve Piece koordinatlarını `absoluteX/Y` üzerinden kalibre et.
+2. **Asset Integration**: Splash screen ve icon dosyalarını `app.json` standartlarına göre yerleştir.
+3. **Animation Polish**: "Strike" durumlarında Board üzerinde hafif sarsıntı (Shake) ve parlama efektlerini devreye al.
+4. **Ad-Network Prep**: Ödüllü reklam (Rewarded Ads) için `continueWithNewPieces` fonksiyonunu tetikleyecek UI butonunu stabilize et.
+5. **Testing**: 12x12 grid üzerinde tüm parçaların "Game Over" durumuna düşüşünü manuel simüle et.
+</file>
+
+<file path="app/index.tsx">
+// app/index.tsx
+import { GameOverOverlay } from "@/src/components/GameOverOverlay";
+import Piece from "@/src/components/Piece";
+import { SkiaExplosionLayer } from "@/src/components/SkiaExplosionLayer";
+import { useGameStore } from "@/src/store/useGameStore";
+import React, { useEffect } from "react";
+import { StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Board } from "../src/components/Board";
+import { ScoreBoard } from "../src/components/ScoreBoard";
+
+export default function Index() {
+  const { top } = useSafeAreaInsets();
+  const {
+    availablePieces,
+    refreshPieces,
+    isGameOver,
+    score,
+    resetGame,
+    continueWithNewPieces,
+  } = useGameStore();
+
+  useEffect(() => {
+    refreshPieces();
+  }, []);
+
+  return (
+    <View style={[styles.container]}>
+      <SkiaExplosionLayer />
+
+      <View style={{ flex: 1, paddingTop: top }}>
+        <ScoreBoard />
+
+        <View style={styles.gameArea}>
+          <Board />
+        </View>
+        <View style={styles.pieceArea}>
+          {availablePieces.map((piece) => (
+            <View key={piece.id} style={styles.pieceContainer}>
+              <Piece {...piece} />
+            </View>
+          ))}
+        </View>
+      </View>
+
+      {/* Skia Katmanı en üstte (Canvas) */}
+      {isGameOver && (
+        <GameOverOverlay
+          score={score}
+          onContinue={continueWithNewPieces}
+          onReset={resetGame}
+        />
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#0f0f0f",
+    alignItems: "center",
+  },
+  gameArea: {
+    flex: 0.6,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  pieceArea: {
+    flex: 0.4,
+    width: "100%",
+    backgroundColor: "#141414",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    justifyContent: "space-around",
+    alignItems: "center",
+    flexDirection: "row",
+  },
+  pieceContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    height: "100%",
+  },
+  gameOverOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.85)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 2000,
+  },
+  gameOverText: { color: "#fff", fontSize: 40, fontWeight: "900" },
+  resetButton: {
+    backgroundColor: "#00ffcc",
+    padding: 15,
+    borderRadius: 10,
+    marginTop: 20,
+  },
+  resetButtonText: { color: "#000", fontWeight: "bold", fontSize: 18 },
+  gameOverTitle: {
+    color: "#fff",
+    fontSize: 44,
+    fontWeight: "900",
+    marginBottom: 10,
+  },
+  finalScoreText: {
+    color: "#00ffcc",
+    fontSize: 60,
+    fontWeight: "900",
+    marginBottom: 40,
+  },
+  buttonContainer: { width: "80%", gap: 15 },
+  actionButton: { padding: 20, borderRadius: 15, alignItems: "center" },
+  actionButtonText: { color: "#000", fontWeight: "bold", fontSize: 16 },
+});
+</file>
+
+<file path="eas.json">
+{
+  "cli": {
+    "version": ">= 16.28.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "preview": {
+      "distribution": "internal"
+    },
+    "production": {
+      "autoIncrement": true
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}
+</file>
+
+<file path="issues.md">
+### sorunlar (çözülmesi gerekenler, çözülenelre tik atılacak)
+
+- [x] gameover olduğunda yeni parçalarla devam et diyor ve yeni parça alıyoruz ama gelen parçalarda olmuyor burada stack kalıyoruz.
+- [x] dikey ya da yatayda parçalar yok olduğu zaman puff animasyonu çıkmasını istiyorum burada lottie kullanmak istiyorum (alternatif yvarsa o da olur önerielre açığım buraya not al)
+- [x] strike sayacı ehr zaman görünür olsun ve sayısına göre alevli felan olacaktır lottie ekleriz + her strike da daha iyi bir animasyon koyarız bunları performanslı olacak şekilde yerleştirmek gerek.
+- [x] board un çerçevesi strike a göre yanıp sönecek şekilde animasyon olmalı
+- [ ] her şeklin rengi farklı olabilir random daha fazla renk ama bir tık daha az parlak olabilir. göz yormasın fazla.
+- [ ] oyun alanı board biraz daha yukarıda olacak parçalarda oyun alanının altında olacak. en alt kısım reklam için rezerve edilecek
+- [ ] oyun background alınırsa anında localstorage a save edilecek mevcut durum geri gelindiğinde kaldığı yerden devam edecek
+- [ ] best score her zaman güncel oyun bitince kaydedilecke ve ekranda görüntülecek
+- [ ] strike sayısına göre ekranda kayan yazılar geçecek (image de olabilir png ileride ekrana hızlıca gelecek bi anlık duracak ve tekrar gidecek pointer none olacak)
+</file>
+
+<file path="src/components/Board.tsx">
+// src/components/Board.tsx
+import React, { useEffect, useRef } from "react";
+import { StyleSheet, View } from "react-native";
+import Animated, {
+  interpolateColor,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
+import { useGameStore } from "../store/useGameStore";
+import Cell from "./Cell";
+
+export const Board = () => {
+  const viewRef = useRef<View>(null);
+  const setBoardLayout = useGameStore((state) => state.setBoardLayout);
+  const { board, streak, preview } = useGameStore();
+
+  // Board titremesini kaldırıyoruz (User requested: "titreme olmasın board sabit kalsın")
+  const pulse = useSharedValue(0);
+
+  useEffect(() => {
+    // Streak varsa çerçeve yanıp sönsün (Pulsation)
+    if (streak > 0) {
+      pulse.value = withRepeat(
+        withSequence(
+          withTiming(1, { duration: 600 }),
+          withTiming(0.4, { duration: 600 }),
+        ),
+        -1, // Infinite repeat
+        true, // Reverse
+      );
+    } else {
+      pulse.value = 0; // Reset
+    }
+  }, [streak]);
+
+  const animatedBorderStyle = useAnimatedStyle(() => {
+    // Basit bir renk geçişi (Streak yokken sabit, varken renkli)
+    const baseColor = "#333";
+    const activeColor = streak > 5 ? "#ffcc00" : "#00ffcc"; // High streak = Gold, Low = Green
+
+    // Streak yoksa pulse etkisi olmasın
+    const borderColor =
+      streak > 0
+        ? interpolateColor(pulse.value, [0, 1], [baseColor, activeColor])
+        : baseColor;
+
+    // Gölge efekti de pulse ile uyumlu olsun
+    const shadowOpacity = streak > 0 ? pulse.value * 0.8 : 0;
+    const shadowRadius = streak > 0 ? 10 : 0;
+    const borderWidth = streak > 0 ? 3 : 1; // Subtle border normally
+
+    return {
+      borderColor,
+      borderWidth,
+      shadowColor: activeColor,
+      shadowOpacity,
+      shadowRadius,
+      shadowOffset: { width: 0, height: 0 },
+      // transform: [{ translateX: shake.value }] // REMOVED SHAKE
+    };
+  });
+  const handleLayout = () => {
+    // 250ms gecikme, ekranın tam çizildiğinden emin olmak içindir
+    setTimeout(() => {
+      viewRef.current?.measureInWindow((x, y, width, height) => {
+        // x ve y'nin 0 gelmesi durumunda ölçümü tekrarla
+        if (width > 0) {
+          setBoardLayout({ x, y, size: width });
+        }
+      });
+    }, 250);
+  };
+  return (
+    <Animated.View
+      ref={viewRef}
+      onLayout={handleLayout}
+      style={[styles.container, animatedBorderStyle]}
+    >
+      {board.map((row, rIdx) => (
+        <View key={rIdx} style={styles.row}>
+          {row.map((cellColor, cIdx) => {
+            let previewColor = null;
+
+            // Preview hesaplamasını güvenli hale getiriyoruz
+            if (preview) {
+              const { row: pR, col: pC, shape, color: pCol } = preview;
+              const localR = rIdx - pR;
+              const localC = cIdx - pC;
+
+              // Sadece parça sınırları içindeyse ve şekil hücresi doluysa (1) göster
+              if (
+                localR >= 0 &&
+                localR < shape.length &&
+                localC >= 0 &&
+                localC < shape[0].length &&
+                shape[localR][localC] === 1
+              ) {
+                previewColor = pCol + "44"; // %25 Opaklık ile daha şık preview
+              }
+            }
+
+            return (
+              <Cell
+                key={`${rIdx}-${cIdx}`}
+                color={cellColor}
+                previewColor={previewColor}
+              />
+            );
+          })}
+        </View>
+      ))}
+    </Animated.View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    padding: 5, // Kenar boşluğunu biraz daralttık
+    backgroundColor: "#1a1a1a",
+    borderRadius: 8,
+  },
+  row: { flexDirection: "row" },
+});
+</file>
+
+<file path="src/components/Cell.tsx">
+// src/components/Cell.tsx
+import React, { memo, useEffect, useRef } from "react";
+import { Dimensions, StyleSheet, View } from "react-native";
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
+import { BOARD_SIZE } from "../utils/constants";
+
+const { width } = Dimensions.get("window");
+const CELL_SIZE = (width - 40) / BOARD_SIZE;
+
+interface CellProps {
+  color: string | null;
+  previewColor: string | null;
+}
+
+const Cell = ({ color, previewColor }: CellProps) => {
+  const blockScale = useSharedValue(color ? 1 : 0);
+  const blockOpacity = useSharedValue(color ? 1 : 0);
+  const prevColor = useRef(color);
+
+  useEffect(() => {
+    // 1. Silinme (Puff) Animasyonu
+    if (color === null && prevColor.current !== null) {
+      blockScale.value = withSequence(
+        withTiming(1.2, { duration: 60 }),
+        withTiming(0, { duration: 100, easing: Easing.out(Easing.quad) }),
+      );
+      blockOpacity.value = withTiming(0, { duration: 120 });
+    }
+    // 2. Yeni blok yerleştirildiğinde
+    else if (color !== null && prevColor.current === null) {
+      blockScale.value = withTiming(1, { duration: 80 });
+      blockOpacity.value = withTiming(1, { duration: 80 });
+    }
+    // 3. Başlangıç veya Reset durumu (Anlık güncelleme)
+    else if (color !== null) {
+      blockScale.value = 1;
+      blockOpacity.value = 1;
+    }
+
+    prevColor.current = color;
+  }, [color]);
+
+  const animatedBlockStyle = useAnimatedStyle(() => {
+    // Öncelik: Kalıcı Blok > Önizleme (Gölge)
+    const isShowingPreview = !color && previewColor;
+
+    return {
+      backgroundColor: color || previewColor || "transparent",
+      // Preview gösterilirken ölçek her zaman 1 olmalı
+      transform: [{ scale: isShowingPreview ? 1 : blockScale.value }],
+      opacity: color ? blockOpacity.value : previewColor ? 1 : 0,
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      borderRadius: 4,
+    };
+  });
+
+  return (
+    <View style={styles.cellContainer}>
+      {/* Sabit Grid Arka Planı - Asla kaybolmaz ve biraz daha belirgin */}
+      <View style={styles.emptyGrid} />
+
+      {/* Animasyonlu Blok veya Önizleme Katmanı */}
+      <Animated.View style={animatedBlockStyle} />
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  cellContainer: {
+    width: CELL_SIZE - 2,
+    height: CELL_SIZE - 2,
+    margin: 1,
+    position: "relative",
+    backgroundColor: "transparent",
+  },
+  emptyGrid: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    borderRadius: 6, // Slightly clearer roundness
+    // No border here to avoid layout calc issues, or constant border.
+    // Let's use a very subtle border consistently.
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.05)",
+  },
+});
+
+export default memo(Cell);
+</file>
+
+<file path="src/components/GameOverOverlay.tsx">
+// src/components/GameOverOverlay.tsx
+import React from "react";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import Animated, { FadeIn } from "react-native-reanimated";
+
+interface GameOverOverlayProps {
+  score: number;
+  onContinue: () => void;
+  onReset: () => void;
+}
+
+export const GameOverOverlay = ({
+  score,
+  onContinue,
+  onReset,
+}: GameOverOverlayProps) => {
+  return (
+    <Animated.View entering={FadeIn.duration(400)} style={styles.overlay}>
+      <Text style={styles.title}>OYUN BİTTİ!</Text>
+      <Text style={styles.score}>{score}</Text>
+
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity
+          style={[styles.button, styles.primaryButton]}
+          onPress={onContinue}
+        >
+          <Text style={styles.buttonText}>YENİ PARÇALARLA DEVAM ET</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.button, styles.secondaryButton]}
+          onPress={onReset}
+        >
+          <Text style={[styles.buttonText, { color: "#fff" }]}>
+            YENİDEN BAŞLA
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </Animated.View>
+  );
+};
+
+const styles = StyleSheet.create({
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.9)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 2000,
+  },
+  title: { color: "#fff", fontSize: 44, fontWeight: "900", marginBottom: 10 },
+  score: {
+    color: "#00ffcc",
+    fontSize: 60,
+    fontWeight: "900",
+    marginBottom: 40,
+  },
+  buttonContainer: { width: "80%", gap: 15 },
+  button: { padding: 20, borderRadius: 15, alignItems: "center" },
+  primaryButton: { backgroundColor: "#ffcc00" },
+  secondaryButton: { backgroundColor: "#333" },
+  buttonText: { color: "#000", fontWeight: "bold", fontSize: 16 },
+});
+</file>
+
+<file path="src/components/Piece.tsx">
+// src/components/Piece.tsx
+import React, { memo } from "react";
+import { Dimensions, StyleSheet, View } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
+import { scheduleOnRN } from "react-native-worklets";
+import { useGameStore } from "../store/useGameStore";
+import { BOARD_SIZE } from "../utils/constants";
+
+const { width } = Dimensions.get("window");
+const CELL_SIZE = (width - 40) / BOARD_SIZE;
+const PREVIEW_OFFSET_Y = 220; // Daha yukarıda, parmak altında kalmaz
+
+const Piece = ({
+  id,
+  shape,
+  color,
+}: {
+  id: string;
+  shape: number[][];
+  color: string;
+}) => {
+  const { onDrop, boardLayout, updatePreview } = useGameStore();
+
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const isDragging = useSharedValue(false);
+  const grabX = useSharedValue(0);
+  const grabY = useSharedValue(0);
+  const lastRow = useSharedValue(-1);
+  const lastCol = useSharedValue(-1);
+
+  // Preview yüksekliği arttırıldı (Parmağın çok daha üzerinde)
+  const gesture = Gesture.Pan()
+    .onStart((e) => {
+      isDragging.value = true;
+      grabX.value = e.x;
+      grabY.value = e.y;
+    })
+    .onUpdate((e) => {
+      translateX.value = e.translationX;
+      translateY.value = e.translationY;
+
+      if (boardLayout) {
+        const absX = e.absoluteX - grabX.value;
+        const absY = e.absoluteY - grabY.value - PREVIEW_OFFSET_Y;
+
+        const col = Math.round((absX - (boardLayout.x + 5)) / CELL_SIZE);
+        const row = Math.round((absY - (boardLayout.y + 5)) / CELL_SIZE);
+
+        // Sadece koordinat değişirse güncelle (1 FPS sorununu çözer)
+        if (row !== lastRow.value || col !== lastCol.value) {
+          lastRow.value = row;
+          lastCol.value = col;
+          scheduleOnRN(updatePreview, { row, col, shape, color });
+        }
+      }
+    })
+    .onEnd((e) => {
+      isDragging.value = false;
+      if (boardLayout) {
+        const absX = e.absoluteX - grabX.value;
+        const absY = e.absoluteY - grabY.value - PREVIEW_OFFSET_Y;
+        const col = Math.round((absX - (boardLayout.x + 5)) / CELL_SIZE);
+        const row = Math.round((absY - (boardLayout.y + 5)) / CELL_SIZE);
+        scheduleOnRN(onDrop, id, shape, row, col, color);
+      }
+      translateX.value = withTiming(0, {
+        duration: 150,
+        easing: Easing.out(Easing.quad),
+      });
+      translateY.value = withTiming(0, {
+        duration: 150,
+        easing: Easing.out(Easing.quad),
+      });
+      lastRow.value = -1;
+      lastCol.value = -1;
+    });
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+      { scale: withTiming(isDragging.value ? 1.05 : 0.8, { duration: 150 }) },
+    ],
+    zIndex: isDragging.value ? 1000 : 1,
+    opacity: withTiming(isDragging.value ? 0.9 : 1, { duration: 150 }),
+  }));
+
+  return (
+    <GestureDetector gesture={gesture}>
+      <Animated.View style={animatedStyle}>
+        {shape.map((r, ri) => (
+          <View key={ri} style={{ flexDirection: "row" }}>
+            {r.map((c, ci) => (
+              <View
+                key={ci}
+                style={[
+                  styles.cell,
+                  {
+                    backgroundColor: c ? color : "transparent",
+                    opacity: c ? 1 : 0,
+                  },
+                ]}
+              />
+            ))}
+          </View>
+        ))}
+      </Animated.View>
+    </GestureDetector>
+  );
+};
+
+const styles = StyleSheet.create({
+  cell: {
+    width: CELL_SIZE - 2,
+    height: CELL_SIZE - 2,
+    margin: 1,
+    borderRadius: 4,
+    borderWidth: 0.5,
+    borderColor: "rgba(255,255,255,0.1)",
+  },
+});
+
+export default memo(Piece);
+</file>
+
+<file path="src/components/PuffExplosion.tsx">
+import React, { memo, useEffect, useMemo } from "react";
+import { StyleSheet, View } from "react-native";
+import Animated, {
+  Easing,
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
+
+interface PuffExplosionProps {
+  color: string;
+  onComplete: () => void;
+}
+
+const PARTICLE_COUNT = 8;
+const EXPLOSION_OFFSET = 30;
+
+// Optimize by running one single animation for the whole container
+const PuffExplosionComponent = ({ color, onComplete }: PuffExplosionProps) => {
+  const progress = useSharedValue(0);
+
+  // Pre-calculate random properties for particles so they are static during renders
+  const particlesConfig = useMemo(() => {
+    return Array.from({ length: PARTICLE_COUNT }).map((_, i) => {
+      const angle = (360 / PARTICLE_COUNT) * i;
+      // Slight randomness for "organic" feel
+      const extraDist = Math.random() * 10;
+      // Delay simulated by start range in interpolation
+      const startDelay = Math.random() * 0.2;
+
+      return {
+        key: i,
+        angle: (angle * Math.PI) / 180, // Convert to radians
+        rotation: angle,
+        extraDist,
+        startDelay,
+      };
+    });
+  }, []);
+
+  useEffect(() => {
+    // Single driver for all particles
+    progress.value = withTiming(1, {
+      duration: 500,
+      easing: Easing.out(Easing.quad),
+    });
+    // Fallback safety to ensure cleanup happens
+    const t = setTimeout(onComplete, 550);
+    return () => clearTimeout(t);
+  }, [onComplete, progress]);
+
+  // Shockwave Style
+  const shockwaveStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: interpolate(progress.value, [0, 1], [0.5, 2]) }],
+      opacity: interpolate(progress.value, [0, 0.5, 1], [0.8, 0.5, 0]),
+      borderColor: color,
+    };
+  });
+
+  return (
+    <View style={styles.container} pointerEvents="none">
+      {/* Single Shockwave */}
+      <Animated.View style={[styles.shockwave, shockwaveStyle]} />
+
+      {/* Particles mapped directly here to avoid sub-component overhead */}
+      {particlesConfig.map((p) => {
+        // eslint-disable-next-line react-hooks/rules-of-hooks
+        const pStyle = useAnimatedStyle(() => {
+          // Map global progress to local particle progress based on startDelay
+          // 0 -> startDelay -> 1
+          // If progress < startDelay, localP = 0
+          const localProgress = interpolate(
+            progress.value,
+            [p.startDelay, 1],
+            [0, 1],
+            "clamp",
+          );
+
+          const dist = EXPLOSION_OFFSET + p.extraDist;
+          const x = localProgress * dist * Math.cos(p.angle);
+          const y = localProgress * dist * Math.sin(p.angle);
+
+          const scale = interpolate(localProgress, [0, 0.7], [1, 0], "clamp");
+
+          return {
+            opacity: 1 - localProgress,
+            transform: [
+              { translateX: x },
+              { translateY: y },
+              { scale },
+              { rotate: `${p.rotation}deg` },
+            ],
+            backgroundColor: color,
+          };
+        });
+
+        return <Animated.View key={p.key} style={[styles.particle, pStyle]} />;
+      })}
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10,
+  },
+  particle: {
+    width: 6,
+    height: 6,
+    position: "absolute",
+    borderRadius: 2,
+  },
+  shockwave: {
+    position: "absolute",
+    width: "80%",
+    height: "80%",
+    borderWidth: 2,
+    borderRadius: 4,
+  },
+});
+
+export const PuffExplosion = memo(PuffExplosionComponent);
+</file>
+
+<file path="src/components/ScoreBoard.tsx">
+// src/components/ScoreBoard.tsx
+import React from "react";
+import { StyleSheet, Text, View } from "react-native";
+import { useGameStore } from "../store/useGameStore";
+
+export const ScoreBoard = () => {
+  const { score, streak } = useGameStore();
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.statBox}>
+        <Text style={styles.label}>SCORE</Text>
+        <Text style={styles.value}>{score}</Text>
+      </View>
+      {streak > 0 && (
+        <View style={styles.statBox}>
+          <Text style={[styles.label, { color: "#ffcc00" }]}>STREAK</Text>
+          <Text style={[styles.value, { color: "#ffcc00" }]}>x{streak}</Text>
+        </View>
+      )}
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    width: "100%",
+    paddingVertical: 20,
+    flex: 0.2,
+  },
+  statBox: {
+    alignItems: "center",
+  },
+  label: {
+    color: "#aaa",
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+  value: {
+    color: "#fff",
+    fontSize: 32,
+    fontWeight: "900",
+  },
+});
+</file>
+
+<file path="src/components/SkiaExplosionLayer.tsx">
+import { Blur, Canvas, Circle, Group, Rect } from "@shopify/react-native-skia";
+import React, { useEffect } from "react";
+import { StyleSheet } from "react-native";
+import {
+  Easing,
+  useDerivedValue,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
+import { useGameStore } from "../store/useGameStore";
+import { BOARD_SIZE } from "../utils/constants";
+
+// TEKİL PARÇACIK: Hook hatasını önlemek için ayrı bileşen
+const Particle = ({ angle, x, y, color, progress, speed }: any) => {
+  const cx = useDerivedValue(
+    () => x + Math.cos(angle) * (progress.value * speed),
+  );
+  const cy = useDerivedValue(
+    () => y + Math.sin(angle) * (progress.value * speed),
+  );
+  const r = useDerivedValue(() => (1 - progress.value) * 5);
+  const opacity = useDerivedValue(() => 1 - progress.value);
+
+  return <Circle cx={cx} cy={cy} r={r} color={color} opacity={opacity} />;
+};
+
+const LineBeam = ({ line, layout, progress }: any) => {
+  const actualSize = layout.size - 10;
+  const cellSize = actualSize / BOARD_SIZE;
+
+  const x =
+    line.type === "row" ? layout.x + 5 : layout.x + 5 + line.index * cellSize;
+  const y =
+    line.type === "row" ? layout.y + 5 + line.index * cellSize : layout.y + 5;
+  const w = line.type === "row" ? actualSize : cellSize;
+  const h = line.type === "row" ? cellSize : actualSize;
+
+  const opacity = useDerivedValue(() => (1 - progress.value) * 0.7);
+
+  return (
+    <Rect x={x} y={y} width={w} height={h} opacity={opacity} color={line.color}>
+      <Blur blur={progress.value * 15} />
+    </Rect>
+  );
+};
+
+export const SkiaExplosionLayer = () => {
+  const { activeExplosions, activeLines, boardLayout } = useGameStore();
+  const progress = useSharedValue(0);
+
+  useEffect(() => {
+    if (activeExplosions.length > 0 || activeLines.length > 0) {
+      progress.value = 0;
+      progress.value = withTiming(1, {
+        duration: 400,
+        easing: Easing.out(Easing.quad),
+      });
+    }
+  }, [activeExplosions, activeLines]);
+
+  if (!boardLayout) return null;
+
+  return (
+    <Canvas style={StyleSheet.absoluteFill} pointerEvents="none">
+      {/* 1. Satır Işınları */}
+      {activeLines.map((line) => (
+        <LineBeam
+          key={line.id}
+          line={line}
+          layout={boardLayout}
+          progress={progress}
+        />
+      ))}
+
+      {/* 2. Patlama Parçacıkları */}
+      {activeExplosions.map((exp) => (
+        <Group key={exp.id}>
+          {Array.from({ length: 10 }).map((_, i) => (
+            <Particle
+              key={`${exp.id}-${i}`}
+              angle={(i * Math.PI * 2) / 10 + Math.random()}
+              x={exp.x}
+              y={exp.y}
+              color={exp.color}
+              progress={progress}
+              speed={60 + Math.random() * 80}
+            />
+          ))}
+        </Group>
+      ))}
+    </Canvas>
+  );
+};
+</file>
+
+<file path="src/store/useGameStore.ts">
+// src/store/useGameStore.ts
+import * as Haptics from "expo-haptics";
+import { create } from "zustand";
+import { BOARD_SIZE, SHAPES } from "../utils/constants";
+import { processMove } from "../utils/gameLogic";
+
+interface ExplosionData {
+  id: string;
+  x: number;
+  y: number;
+  color: string;
+}
+
+interface LineClear {
+  id: string;
+  type: "row" | "col";
+  index: number;
+  color: string;
+}
+
+interface GameState {
+  board: (string | null)[][];
+  score: number;
+  streak: number; // Arka arkaya kaç hamledir parça siliyoruz?
+  lastMoveResult: any | null; // UI'daki animasyonlar bunu dinleyecek
+  availablePieces: { id: string; shape: number[][]; color: string }[];
+  refreshPieces: (checkPlayability?: boolean) => void;
+  removePiece: (id: string) => void;
+  activeLines: LineClear[];
+  onDrop: (
+    id: string,
+    shape: number[][],
+    row: number,
+    col: number,
+    color: string,
+  ) => void;
+  handleMove: (piece: number[][], r: number, c: number, color: string) => void;
+  boardLayout: { x: number; y: number; size: number } | null;
+  setBoardLayout: (layout: { x: number; y: number; size: number }) => void;
+  canPlacePiece: (piece: number[][], row: number, col: number) => boolean;
+  preview: {
+    row: number;
+    col: number;
+    shape: number[][];
+    color: string;
+  } | null;
+  updatePreview: (preview: GameState["preview"]) => void;
+  bestScore: number;
+  isGameOver: boolean;
+  resetGame: () => void;
+
+  checkGameOver: () => void;
+  continueWithNewPieces: () => void;
+  activeExplosions: ExplosionData[];
+  triggerExplosions: (
+    cells: { row: number; col: number; color: string }[],
+    clearedRows: number[], // EKLENDİ
+    clearedCols: number[], // EKLENDİ
+  ) => void;
+}
+
+export const useGameStore = create<GameState>((set, get) => ({
+  board: Array(BOARD_SIZE)
+    .fill(null)
+    .map(() => Array(BOARD_SIZE).fill(null)),
+  score: 0,
+  streak: 0,
+  lastMoveResult: null,
+  availablePieces: [],
+  preview: null,
+  updatePreview: (preview) => set({ preview }),
+  boardLayout: null,
+  setBoardLayout: (layout) => set({ boardLayout: layout }),
+  bestScore: 0,
+  isGameOver: false,
+  activeExplosions: [],
+  activeLines: [],
+  triggerExplosions: (cells, clearedRows, clearedCols) => {
+    const { boardLayout } = get();
+    if (!boardLayout) return;
+
+    const actualBoardSize = boardLayout.size - 10;
+    const cellSize = actualBoardSize / BOARD_SIZE;
+
+    const newExplosions = cells.map((cell) => ({
+      id: Math.random().toString(),
+      x: boardLayout.x + 5 + cell.col * cellSize + cellSize / 2,
+      y: boardLayout.y + 5 + cell.row * cellSize + cellSize / 2,
+      color: cell.color,
+    }));
+
+    const newLines = [
+      ...clearedRows.map((r) => ({
+        id: Math.random().toString(),
+        type: "row" as const,
+        index: r,
+        color: cells[0]?.color || "#fff",
+      })),
+      ...clearedCols.map((c) => ({
+        id: Math.random().toString(),
+        type: "col" as const,
+        index: c,
+        color: cells[0]?.color || "#fff",
+      })),
+    ];
+
+    set({ activeExplosions: newExplosions, activeLines: newLines });
+    setTimeout(() => set({ activeExplosions: [], activeLines: [] }), 450);
+  },
+  handleMove: (piece, r, c, color) => {
+    const { board, streak, score, bestScore, triggerExplosions } = get();
+    const result = processMove(board, piece, r, c, color, streak);
+
+    const hasClears =
+      result.clearedRows.length > 0 || result.clearedCols.length > 0;
+
+    if (hasClears) {
+      // Patlayacak hücreleri tespit et
+      const cellsToExplode: { row: number; col: number; color: string }[] = [];
+
+      // Satırlardaki hücreler
+      result.clearedRows.forEach((rowIdx) => {
+        result.placedBoard[rowIdx].forEach((cellCol, colIdx) => {
+          if (cellCol)
+            cellsToExplode.push({ row: rowIdx, col: colIdx, color: cellCol });
+        });
+      });
+
+      // Sütunlardaki hücreler (aynı hücreleri tekrar eklememek için kontrol edilebilir)
+      result.clearedCols.forEach((colIdx) => {
+        for (let rowIdx = 0; rowIdx < BOARD_SIZE; rowIdx++) {
+          const cellCol = result.placedBoard[rowIdx][colIdx];
+          if (cellCol)
+            cellsToExplode.push({ row: rowIdx, col: colIdx, color: cellCol });
+        }
+      });
+
+      // Patlamayı Skia katmanına gönder
+      triggerExplosions(cellsToExplode, result.clearedRows, result.clearedCols);
+      set({
+        board: result.placedBoard,
+        score: score + result.score,
+        streak: streak + 1,
+      });
+
+      setTimeout(() => {
+        set({ board: result.newBoard });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }, 50);
+    } else {
+      set({ board: result.newBoard, score: score + result.score, streak: 0 });
+      Haptics.selectionAsync();
+    }
+    get().checkGameOver();
+  },
+  refreshPieces: (checkPlayability = false) => {
+    const colors = ["#FF5733", "#33FF57", "#3357FF", "#F333FF", "#FF33A1"];
+    const shapesKeys = Object.keys(SHAPES) as (keyof typeof SHAPES)[];
+
+    // Yardımcı: Bir parçanın board'a herhangi bir yere sığıp sığmadığını kontrol et
+    const doesPieceFit = (
+      piece: number[][],
+      currentBoard: (string | null)[][],
+    ) => {
+      const boardSize = currentBoard.length;
+      for (let r = 0; r <= boardSize - piece.length; r++) {
+        for (let c = 0; c <= boardSize - piece[0].length; c++) {
+          // canPlacePiece store fonksiyonunu burada kullanamayız çünkü get().canPlacePiece board'u state'den alır.
+          // Yerel board kontrolü için basit bir iç mantık:
+          let fits = true;
+          for (let pr = 0; pr < piece.length; pr++) {
+            for (let pc = 0; pc < piece[pr].length; pc++) {
+              if (piece[pr][pc] === 1) {
+                if (currentBoard[r + pr][c + pc] !== null) {
+                  fits = false;
+                  break;
+                }
+              }
+            }
+            if (!fits) break;
+          }
+          if (fits) return true;
+        }
+      }
+      return false;
+    };
+
+    const newPieces = [1, 2, 3].map((i) => ({
+      id: Math.random().toString(36),
+      shape: SHAPES[shapesKeys[Math.floor(Math.random() * shapesKeys.length)]],
+      color: colors[Math.floor(Math.random() * colors.length)],
+    }));
+
+    // Eğer oynanabilirlik kontrolü isteniyorsa (örneğin Continue sonrası)
+    if (checkPlayability) {
+      const { board } = get();
+      // Üretilen parçalardan herhangi biri board'a sığıyor mu?
+      const isAnyPlayable = newPieces.some((p) => doesPieceFit(p.shape, board));
+
+      // Hiçbiri sığmıyorsa, en az bir tane sığan parça (kurtarıcı) verelim
+      if (!isAnyPlayable) {
+        // Basit bir 1x1 nokta veya çok küçük bir parça bulalım
+        const safePiece = {
+          id: Math.random().toString(36) + "_safe",
+          shape: SHAPES.DOT, // En güvenli parça
+          color: colors[0], // Rastgele de olabilir
+        };
+
+        // İlk parçayı güvenli olanla değiştir
+        newPieces[0] = safePiece;
+      }
+    }
+
+    set({ availablePieces: newPieces });
+  },
+
+  removePiece: (id) => {
+    const nextPieces = get().availablePieces.filter((p) => p.id !== id);
+    set({ availablePieces: nextPieces });
+
+    if (nextPieces.length === 0) {
+      get().refreshPieces();
+    }
+
+    // Parçalar güncellendikten SONRA kontrol etmeliyiz
+    get().checkGameOver();
+  },
+  canPlacePiece: (piece, row, col) => {
+    const { board } = get();
+    const boardSize = board.length;
+
+    for (let r = 0; r < piece.length; r++) {
+      for (let c = 0; c < piece[r].length; c++) {
+        if (piece[r][c] === 1) {
+          const targetR = row + r;
+          const targetC = col + c;
+          if (
+            targetR < 0 ||
+            targetR >= boardSize ||
+            targetC < 0 ||
+            targetC >= boardSize ||
+            board[targetR][targetC] !== null
+          )
+            return false;
+        }
+      }
+    }
+    return true;
+  },
+  onDrop: (id, shape, row, col, color) => {
+    const { canPlacePiece, handleMove, removePiece } = get();
+    set({ preview: null }); // Önizlemeyi temizle
+
+    // Eğer yerleştirme kurallara uygunsa
+    if (canPlacePiece(shape, row, col)) {
+      handleMove(shape, row, col, color);
+      removePiece(id); // Başarılıysa parçayı store'dan sil
+    }
+    // NOT: Başarısızsa hiçbir şey yapmıyoruz.
+    // Parça silinmediği için Piece bileşeni kendini eski yerine çekecek.
+  },
+  checkGameOver: () => {
+    const { board, availablePieces, canPlacePiece } = get();
+    if (availablePieces.length === 0) return;
+
+    const canMove = availablePieces.some((piece) => {
+      for (let r = 0; r <= BOARD_SIZE - piece.shape.length; r++) {
+        for (let c = 0; c <= BOARD_SIZE - piece.shape[0].length; c++) {
+          if (canPlacePiece(piece.shape, r, c)) return true;
+        }
+      }
+      return false;
+    });
+
+    if (!canMove) set({ isGameOver: true });
+  },
+
+  resetGame: () => {
+    set({
+      board: Array(BOARD_SIZE)
+        .fill(null)
+        .map(() => Array(BOARD_SIZE).fill(null)),
+      score: 0,
+      streak: 0,
+      isGameOver: false,
+      lastMoveResult: null,
+      preview: null,
+    });
+    get().refreshPieces();
+  },
+  continueWithNewPieces: () => {
+    // 1. isGameOver'ı anında kapat
+    set({ isGameOver: false });
+    // 2. Oynanabilir parçalar üret (refreshPieces(true) içeride 'safePiece' mantığı barındırıyor)
+    get().refreshPieces(true);
+  },
+}));
+</file>
+
+<file path="src/types/index.ts">
+// src/types/index.ts
+export type PieceType = number[][];
+
+export interface GameCell {
+  row: number;
+  col: number;
+  color: string | null;
+}
+</file>
+
+<file path="src/utils/constants.ts">
+// src/utils/constants.ts
+import { Dimensions } from "react-native";
+const { width } = Dimensions.get("window");
+export const BOARD_SIZE = 9;
+
+export const SHAPES = {
+  // DOT: [[1]],
+  // SQUARE_2x2: [
+  //   [1, 1],
+  //   [1, 1],
+  // ],
+  SQUARE_3x3: [
+    [1, 1, 1],
+    [1, 1, 1],
+    [1, 1, 1],
+  ],
+  // LINE_3_H: [[1, 1, 1]],
+  // LINE_3_V: [[1], [1], [1]],
+  // L_SHAPE: [
+  //   [1, 0],
+  //   [1, 0],
+  //   [1, 1],
+  // ],
+  // L_SHAPE_2: [
+  //   [0, 1],
+  //   [0, 1],
+  //   [1, 1],
+  // ],
+  // Z_SHAPE: [
+  //   [1, 1, 0],
+  //   [0, 1, 1],
+  // ],
+  // Z_SHAPE_2: [
+  //   [0, 1, 1],
+  //   [1, 1, 0],
+  // ],
+  // T_SHAPE: [
+  //   [1, 1, 1],
+  //   [0, 1, 0],
+  // ],
+  // T_REVERSED: [
+  //   [0, 1, 0],
+  //   [1, 1, 1],
+  // ],
+  // T_LEFT: [
+  //   [1, 0],
+  //   [1, 1],
+  //   [1, 1],
+  // ],
+  // T_RIGHT: [
+  //   [0, 1],
+  //   [1, 1],
+  //   [0, 1],
+  // ],
+};
+
+export const SCORING = {
+  BASE_CELL: 10, // Yerleştirilen her bir kare için
+  LINE_CLEAR: 100, // Silinen her bir satır/sütun için
+  CROSS_BONUS: 2.5, // Hem yatay hem dikey aynı anda silinirse çarpan
+  MULTI_LINE_EXP: 1.5, // Aynı anda birden fazla satır silinirse (n^1.5 gibi)
+};
+
+export const CELL_MARGIN = 2; // Hücreler arası boşluk
+// Toplam genişlikten marjinleri çıkarıp board boyutuna bölüyoruz
+export const CELL_SIZE = (width - 40) / BOARD_SIZE;
+export const CELL_BORDER_RADIUS = 4;
+</file>
+
+<file path="src/utils/gameLogic.ts">
+import { BOARD_SIZE, SCORING } from "./constants";
+
+export interface MoveResult {
+  newBoard: (string | null)[][];
+  placedBoard: (string | null)[][]; // The board state BEFORE clearing lines
+  clearedRows: number[];
+  clearedCols: number[];
+  score: number;
+  isCross: boolean;
+  comboType: "SINGLE" | "DOUBLE" | "TRIPLE" | "QUAD" | "MEGA";
+  totalCellsCleared: number;
+}
+
+export const processMove = (
+  board: (string | null)[][],
+  piece: number[][],
+  row: number,
+  col: number,
+  color: string,
+  currentStreak: number,
+): MoveResult => {
+  // 1. Board'un kopyasını oluştur ve parçayı yerleştir
+  let nextBoard = board.map((r) => [...r]);
+  let cellsPlaced = 0;
+
+  piece.forEach((pRow, rIdx) => {
+    pRow.forEach((cell, cIdx) => {
+      if (cell === 1) {
+        nextBoard[row + rIdx][col + cIdx] = color;
+        cellsPlaced++;
+      }
+    });
+  });
+
+  const clearedRows: number[] = [];
+  const clearedCols: number[] = [];
+
+  // 2. Satırları Kontrol Et
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    if (nextBoard[r].every((cell) => cell !== null)) clearedRows.push(r);
+  }
+
+  // 3. Sütunları Kontrol Et
+  for (let c = 0; c < BOARD_SIZE; c++) {
+    let isFull = true;
+    for (let r = 0; r < BOARD_SIZE; r++) {
+      if (nextBoard[r][c] === null) {
+        isFull = false;
+        break;
+      }
+    }
+    if (isFull) clearedCols.push(c);
+  }
+
+  // 4. Board'u Temizle (Görsel animasyon için indexleri saklıyoruz)
+  const finalBoard = nextBoard.map((r, rIdx) =>
+    r.map((cell, cIdx) =>
+      clearedRows.includes(rIdx) || clearedCols.includes(cIdx) ? null : cell,
+    ),
+  );
+
+  // 5. Gelişmiş Skor Hesaplama
+  const totalLines = clearedRows.length + clearedCols.length;
+  const isCross = clearedRows.length > 0 && clearedCols.length > 0;
+  let moveScore = cellsPlaced * SCORING.BASE_CELL;
+
+  if (totalLines > 0) {
+    let lineBonus = totalLines * SCORING.LINE_CLEAR;
+    // Multi-line bonus (2 satır silmek 1+1'den daha değerli olmalı)
+    lineBonus = Math.floor(
+      lineBonus * Math.pow(totalLines, SCORING.MULTI_LINE_EXP - 1),
+    );
+
+    // Cross bonus
+    if (isCross) lineBonus *= SCORING.CROSS_BONUS;
+
+    // Streak bonus (Üst üste hamleler)
+    moveScore += lineBonus * (1 + currentStreak * 0.5);
+  }
+
+  return {
+    newBoard: finalBoard,
+    placedBoard: nextBoard,
+    clearedRows,
+    clearedCols,
+    score: Math.floor(moveScore),
+    isCross,
+    totalCellsCleared:
+      clearedRows.length * BOARD_SIZE +
+      clearedCols.length * BOARD_SIZE -
+      clearedRows.length * clearedCols.length,
+    comboType:
+      totalLines <= 1
+        ? "SINGLE"
+        : totalLines === 2
+          ? "DOUBLE"
+          : totalLines === 3
+            ? "TRIPLE"
+            : "MEGA",
+  };
+};
+</file>
+
+<file path=".gitignore">
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+
+# typescript
+*.tsbuildinfo
+
+app-example
+
+# generated native folders
+/ios
+/android
+</file>
+
+<file path="app.json">
+{
+  "expo": {
+    "name": "grid-grin",
+    "slug": "grid-grin",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "gridgrin",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "buildNumber": "1",
+      "supportsTablet": true,
+      "bundleIdentifier": "com.eoist.gridgrin"
+    },
+    "android": {
+      "versionCode": 1,
+      "package": "com.eoist.gridgrin",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff",
+          "dark": {
+            "backgroundColor": "#000000"
+          }
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          },
+          "android": {
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "buildToolsVersion": "35.0.0",
+            "enableProguardInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "enableR8InReleaseBuilds": true
+          }
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "b666c5ef-3e6f-4f31-a109-93433efede06"
+      }
+    }
+  }
+}
+</file>
+
+<file path="app/_layout.tsx">
+import { Stack } from "expo-router";
+import { StatusBar } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+
+export default function RootLayout() {
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <StatusBar barStyle="light-content" />
+      <Stack screenOptions={{ headerShown: false }} />
+    </GestureHandlerRootView>
+  );
+}
+</file>
+
+<file path="eslint.config.js">
+// https://docs.expo.dev/guides/using-eslint/
+const { defineConfig } = require('eslint/config');
+const expoConfig = require('eslint-config-expo/flat');
+
+module.exports = defineConfig([
+  expoConfig,
+  {
+    ignores: ['dist/*'],
+  },
+]);
+</file>
+
+<file path="package.json">
+{
+  "name": "grid-grin",
+  "main": "expo-router/entry",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "expo start",
+    "reset-project": "node ./scripts/reset-project.js",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "lint": "expo lint"
+  },
+  "dependencies": {
+    "@expo/vector-icons": "^15.0.3",
+    "@react-navigation/bottom-tabs": "^7.4.0",
+    "@react-navigation/elements": "^2.6.3",
+    "@react-navigation/native": "^7.1.8",
+    "@shopify/react-native-skia": "2.2.12",
+    "expo": "~54.0.0",
+    "expo-build-properties": "~1.0.10",
+    "expo-constants": "~18.0.13",
+    "expo-font": "~14.0.11",
+    "expo-haptics": "~15.0.8",
+    "expo-image": "~3.0.11",
+    "expo-linking": "~8.0.11",
+    "expo-router": "~6.0.22",
+    "expo-splash-screen": "~31.0.13",
+    "expo-status-bar": "~3.0.9",
+    "expo-symbols": "~1.0.8",
+    "expo-system-ui": "~6.0.9",
+    "expo-web-browser": "~15.0.10",
+    "lottie-react-native": "~7.3.1",
+    "lucide-react-native": "^0.563.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-gesture-handler": "~2.28.0",
+    "react-native-reanimated": "~4.1.1",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "react-native-web": "~0.21.0",
+    "react-native-worklets": "0.5.1",
+    "zustand": "^5.0.10"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.0",
+    "babel-preset-expo": "~54.0.10",
+    "eslint": "^9.25.0",
+    "eslint-config-expo": "~10.0.0",
+    "typescript": "~5.9.2"
+  },
+  "private": true
+}
+</file>
+
+<file path="README.md">
+# Welcome to your Expo app 👋
+
+This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+
+## Get started
+
+1. Install dependencies
+
+   ```bash
+   npm install
+   ```
+
+2. Start the app
+
+   ```bash
+   npx expo start
+   ```
+
+In the output, you'll find options to open the app in a
+
+- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
+- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
+- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
+- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+
+You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+
+## Get a fresh project
+
+When you're ready, run:
+
+```bash
+npm run reset-project
+```
+
+This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+
+## Learn more
+
+To learn more about developing your project with Expo, look at the following resources:
+
+- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
+- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+
+## Join the community
+
+Join our community of developers creating universal apps.
+
+- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
+- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+</file>
+
+<file path="tsconfig.json">
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "jsx": "react-native",
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"]
+}
+</file>
+
+</files>
