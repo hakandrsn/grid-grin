@@ -1,6 +1,7 @@
 import { useGameStore } from "@/src/store/useGameStore";
 import { THEME } from "@/src/utils/constants";
 import { useRouter } from "expo-router";
+import { requestTrackingPermissionsAsync } from "expo-tracking-transparency";
 import React, { useEffect } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
@@ -11,6 +12,15 @@ export default function MainMenu() {
   const router = useRouter();
   const { loadGame, hasSavedGame, resetGame, score, leaderboard } =
     useGameStore();
+
+  useEffect(() => {
+    (async () => {
+      const { status } = await requestTrackingPermissionsAsync();
+      if (status === "granted") {
+        console.log("Yay! I have user permission to track data");
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     loadGame(); // Check for saved game on mount
