@@ -1,9 +1,9 @@
-🧩 Grid Grin (Tilo)
-Grid Grin, klasik blok bulmaca mekaniklerini modern bir dokunuşla (ve bolca emojiyle 😄) yeniden yorumladığım bir mobil oyun projesi.
+# Grid Grin
+## Grid Grin, klasik blok bulmaca mekaniklerini modern bir dokunuşla (ve bolca emojiyle 😄) yeniden yorumladığım bir mobil oyun projesi.
 
 Bu projeyi sadece bir oyun yapmak için değil, React Native'in sınırlarını zorlamak, yüksek performanslı animasyonlar ve karmaşık oyun mantıkları (state management) üzerine deneyler yapmak için geliştirdim.
 
-🎯 Neden Bu Proje?
+### Neden Bu Proje?
 Marketlerdeki binlerce bulmaca oyunundan farklı olarak, teknik tarafta "native" performansı yakalayan, kullanıcı deneyimi (UX) tarafında ise akıcı ve "canlı" hissettiren bir yapı kurmayı hedefledim.
 
 Şu anki versiyonda odaklandığım temel özellikler:
@@ -14,7 +14,7 @@ Strike Mekaniği: Oyuncuyu ödüllendiren ve oyun zevkini artıran özel kombola
 
 Performans: react-native-reanimated kullanarak 60 FPS (hatta 120 FPS) animasyonlar.
 
-🛠️ Teknolojiler & Mimari
+### Teknolojiler & Mimari
 Bir Full-Stack Developer olarak, bu projede mobil taraftaki kaslarımı şu teknolojilerle güçlendirdim:
 
 Framework: React Native (Expo Managed Workflow)
@@ -27,7 +27,7 @@ State Management: Zustand
 
 Mimari: Modüler ve test edilebilir bir yapı (bkz: services/ ve src/ klasörleri)
 
-🚧 Öğrendiklerim & Zorluklar
+### Öğrendiklerim & Zorluklar
 Bu süreçte "çalışan kod" ile "performanslı kod" arasındaki farkı net bir şekilde gördüm. Özellikle:
 
 Skia ile canvas üzerinde çizim yaparken bellek yönetimi. daha sonra tamamen 60 FPS için reanimated
@@ -36,22 +36,22 @@ Android emülatörlerinde (ve fiziksel cihazlarda) animasyonların senkronizasyo
 
 Karmaşık oyun döngülerinin (Game Loop) React'in render mantığıyla çakışmadan yönetilmesi gibi konularda ciddi tecrübeler edindim.
 
-🚀 Kurulum (Local Development)
+### Kurulum (Local Development)
 Projeyi kendi bilgisayarında denemek istersen:
 
 Repoyu klonla:
 
 Bash
-git clone https://github.com/hakandrsn/grid-grin.git
-cd grid-grin
+`git clone https://github.com/hakandrsn/grid-grin.git`
+`cd grid-grin`
 Bağımlılıkları yükle:
 
 Bash
-npm install
+`npm install`
 Uygulamayı başlat:
 
 Bash
-npx expo start
+`npx expo start`
 (Android Studio emülatörü veya fiziksel cihazında Expo Go ile taratabilirsin.)
 
 LinkedIn Profilim | Diğer Projelerim
