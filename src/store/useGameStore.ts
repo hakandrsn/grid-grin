@@ -28,6 +28,7 @@ interface GameState {
   resetGame: () => void;
   checkGameOver: () => void;
   continueWithNewPieces: () => void;
+  continueWithAd: () => void;
 
   refreshPieces: (checkPlayability?: boolean) => void;
   removePiece: (id: string) => void;
@@ -158,28 +159,16 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     const newTotalScore = currentScore + moveScore;
 
-    // 3. Milestone (Rekor Kırma) Kontrolü
-    // 3. Sıra: [0], 2. Sıra: [1], 1. Sıra: [2] gibi düşünmeyelim, sıralı tutalım (Desc).
-    // Varsayım: leaderboard [High, Mid, Low] (Desc)
-    // Ama kullanıcı: "3. passed -> Sweet", "2. passed -> Good", "1. passed -> Perfect" dedi.
-    // Yani en düşükten en yükseğe doğru geçişleri kutlayacağız.
-
     let milestone: GameState["milestoneEvent"] = null;
     const [first, second, third] = leaderboard;
 
     // Skor değişimi sınırları geçti mi?
-    // Eğer eskiden 3. skorun altındaysa VE şimdi üstündeyse -> Sweet
-    // (Basitlik adına: Sadece bu hamlede geçtiyse tetikle)
     if (currentScore < third && newTotalScore >= third && third > 0)
       milestone = "sweet";
     else if (currentScore < second && newTotalScore >= second && second > 0)
       milestone = "good";
     else if (currentScore < first && newTotalScore >= first && first > 0)
       milestone = "perfect";
-
-    // Eğer ilk defa rekor kırılıyorsa ve leaderboard boşsa (0) hepsini yakabilir, bunu engellemek için leaderboard > 0 kontrolü ekledim.
-    // Ancak oyunun başında 0 ise ilk puanla rekor kırılmaz mı? Kullanıcı 'kaydettiğimiz skorları geçtiğinde' dedi.
-    // Yani 0'ı geçmek sayılmaz, anlamlı bir skoru geçmek lazım.
 
     set({
       board: result.placedBoard,
@@ -189,24 +178,37 @@ export const useGameStore = create<GameState>((set, get) => ({
     });
 
     if (clearedCount > 0) {
-      setTimeout(() => {
-        set({ board: result.newBoard });
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        // Board temizlendikten sonra Game Over kontrolü yap
-        get().checkGameOver();
-      }, 50);
+      // Animasyon tamamlandıktan sonra board'u güncelle (performans için)
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          set({ board: result.newBoard });
+          // Haptics'i ayrı yap, ana thread'i bloke etmesin
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          get().checkGameOver();
+        }, 100); // Daha uzun süre ver animasyon için
+      });
     } else {
-      set({ board: result.newBoard });
-      Haptics.selectionAsync();
-      // Hemen Game Over kontrolü yap
-      get().checkGameOver();
+      // Silme yoksa direkt güncelle
+      requestAnimationFrame(() => {
+        set({ board: result.newBoard });
+        Haptics.selectionAsync();
+        get().checkGameOver();
+      });
     }
   },
 
   clearMilestone: () => set({ milestoneEvent: null }),
 
   refreshPieces: (checkPlayability = false) => {
-    const colors = ["#FF5733", "#33FF57", "#3357FF", "#F333FF", "#FF33A1"];
+    const colors = [
+      "#FF5733", // Red-Orange
+      "#33FF57", // Green
+      "#3357FF", // Blue
+      "#F333FF", // Pink/Purple
+      "#FFC300", // Gold/Yellow
+      "#00F5FF", // Cyan
+      "#FF33A1", // Hot Pink
+    ];
     const shapesKeys = Object.keys(SHAPES) as (keyof typeof SHAPES)[];
 
     const doesPieceFit = (
@@ -215,6 +217,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     ) => {
       const boardSize = currentBoard.length;
       for (let r = 0; r <= boardSize - piece.length; r++) {
+        // DİKKAT: Burada da aynı hata olmasın diye <= yaptık (zaten doğruydu ama emin olalım)
         for (let c = 0; c <= boardSize - piece[0].length; c++) {
           let fits = true;
           for (let pr = 0; pr < piece.length; pr++) {
@@ -248,7 +251,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         // En güvenli parça ile değiştir
         newPieces[0] = {
           id: Math.random().toString(36) + "_safe",
-          shape: SHAPES.DOT, // Square 3x3 çok büyük, DOT yapıyorum çünkü "kurtarıcı" parça olmalı.
+          shape: SHAPES.DOT,
           color: colors[0],
         };
       }
@@ -290,9 +293,9 @@ export const useGameStore = create<GameState>((set, get) => ({
   onDrop: (id, shape, row, col, color) => {
     const { canPlacePiece, handleMove, removePiece } = get();
     if (canPlacePiece(shape, row, col)) {
-      // ÖNCE parçayı elden çıkar (böylece availablePieces güncellenir)
+      // ÖNCE parçayı elden çıkar
       removePiece(id);
-      // SONRA hamleyi işle (Board güncellenir ve animasyon sonrası CheckGameOver yapılır)
+      // SONRA hamleyi işle
       handleMove(shape, row, col, color);
     }
   },
@@ -303,8 +306,12 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (isGameOver || availablePieces.length === 0) return;
 
     const canMove = availablePieces.some((piece) => {
+      // --- DÜZELTME BURADA YAPILDI ---
+      // Satır kontrolü
       for (let r = 0; r <= BOARD_SIZE - piece.shape.length; r++) {
-        for (let c = 0; c < BOARD_SIZE - piece.shape[0].length; c++) {
+        // Sütun kontrolü: Eskiden < (küçüktür) idi, şimdi <= (küçük eşittir) yaptık.
+        // Bu sayede son sütunu da kontrol ediyor.
+        for (let c = 0; c <= BOARD_SIZE - piece.shape[0].length; c++) {
           if (canPlacePiece(piece.shape, r, c)) return true;
         }
       }
@@ -319,9 +326,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
       // Eğer bu "Continue" sonrası bir Game Over ise:
       if (lastSavedScore !== null) {
-        // Eğer yeni skor, en son kaydedilen (Continue öncesi) skoru geçtiyse güncelle
         if (score > lastSavedScore) {
-          // Eski skoru sil (Sadece bir tane silmek için index buluyoruz)
           const indexToRemove = newLeaderboard.indexOf(lastSavedScore);
           if (indexToRemove !== -1) {
             newLeaderboard.splice(indexToRemove, 1);
@@ -329,7 +334,6 @@ export const useGameStore = create<GameState>((set, get) => ({
           newLeaderboard.push(score);
           shouldUpdate = true;
         }
-        // Eğer geçemediyse HIÇBİR ŞEY YAPMA (Eski skor leaderboard'da kalır)
       } else {
         // İlk Game Over
         newLeaderboard.push(score);
@@ -347,10 +351,6 @@ export const useGameStore = create<GameState>((set, get) => ({
         });
       }
 
-      // Her durumda artık bu skor "kaydedilmiş" kabul edilir (Continue edilirse referans alınacak)
-      // Eğer update yapmadıysak bile lastSavedScore artık max(score, lastSavedScore) olmalı ama...
-      // Kullanıcı: "Geçerse güncellenecek, geçemezse hiçbir şey olmayacak"
-      // Yani Session'daki "Highest Score"u tutmalıyız referans olarak.
       const sessionBest =
         lastSavedScore !== null ? Math.max(score, lastSavedScore) : score;
 
@@ -371,7 +371,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       isGameOver: false,
       lastMoveResult: null,
       milestoneEvent: null,
-      lastSavedScore: null, // Yeni oyun, yeni session
+      lastSavedScore: null,
     });
     get().refreshPieces();
   },
@@ -382,10 +382,14 @@ export const useGameStore = create<GameState>((set, get) => ({
       set({
         isGameOver: false,
         score: score - 500,
-        // lastSavedScore SIFIRLANMAZ, korunur. Çünkü bu bir devam oturumudur.
       });
       get().refreshPieces(true);
     }
-    // Puan yetersizse UI tarafında buton disable olacak, burada işlem yapmıyoruz.
+  },
+
+  // Reklam izleyerek devam et (puan düşmez)
+  continueWithAd: () => {
+    set({ isGameOver: false });
+    get().refreshPieces(true);
   },
 }));

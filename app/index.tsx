@@ -15,16 +15,13 @@ export default function MainMenu() {
 
   useEffect(() => {
     (async () => {
-      const { status } = await requestTrackingPermissionsAsync();
-      if (status === "granted") {
-        console.log("Yay! I have user permission to track data");
-      }
+      await requestTrackingPermissionsAsync();
     })();
   }, []);
 
   useEffect(() => {
     loadGame(); // Check for saved game on mount
-  }, []);
+  }, [loadGame]);
 
   const handleNewGame = () => {
     resetGame();

@@ -8,7 +8,7 @@ import { create } from "zustand";
 export const AD_RULES = {
   // Interstitial rules
   interstitial: {
-    excludedLevels: [], // No exclusions for infinite mode
+    excludedLevels: [] as { chapterId: number; levelId: number }[], // No exclusions for infinite mode
     minTimeBetweenAds: 120000, // 2 minutes between interstitial ads
     showOnLevelEntry: false,
   },
@@ -128,7 +128,6 @@ export const useAdStore = create<AdStore>((set, get) => ({
       );
 
       if (isExcluded) {
-        console.log(`📺 Level ${chapterId}-${levelId} is excluded from ads`);
         return false;
       }
 
@@ -136,16 +135,11 @@ export const useAdStore = create<AdStore>((set, get) => ({
       const now = Date.now();
       const timeSinceLastAd = now - state.lastInterstitialShown;
       if (timeSinceLastAd < AD_RULES.interstitial.minTimeBetweenAds) {
-        const remainingSeconds = Math.ceil(
-          (AD_RULES.interstitial.minTimeBetweenAds - timeSinceLastAd) / 1000,
-        );
-        console.log(`📺 Too soon for ad, wait ${remainingSeconds}s`);
         return false;
       }
 
       // Check if ad is ready
       if (!state.isInterstitialReady) {
-        console.log("📺 Interstitial not ready");
         return false;
       }
 
@@ -174,12 +168,10 @@ export const useAdStore = create<AdStore>((set, get) => ({
       const state = get();
 
       if (!AD_RULES.rewarded.enabled) {
-        console.log("🎁 Rewarded ads disabled");
         return false;
       }
 
       if (!state.isRewardedReady) {
-        console.log("🎁 Rewarded not ready");
         return false;
       }
 
@@ -242,10 +234,9 @@ export const useAdStore = create<AdStore>((set, get) => ({
             totalRewardedsShown: parsed.totalRewardedsShown || 0,
             totalBannersShown: parsed.totalBannersShown || 0,
           });
-          console.log("📺 Ad state loaded from storage");
         }
-      } catch (error) {
-        console.error("📺 Failed to load ad state:", error);
+      } catch {
+        // Silent fail for ad state loading
       }
     },
 
@@ -260,8 +251,8 @@ export const useAdStore = create<AdStore>((set, get) => ({
           totalBannersShown: state.totalBannersShown,
         };
         await AsyncStorage.setItem(AD_STATE_KEY, JSON.stringify(toSave));
-      } catch (error) {
-        console.error("📺 Failed to save ad state:", error);
+      } catch {
+        // Silent fail for ad state saving
       }
     },
 

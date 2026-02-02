@@ -7,3 +7,7 @@ Dil ve Stack: Her zaman TypeScript kullanılmalı, mobil arayüzlerde React Nati
 State Yönetimi: Karmaşık UI durumları yerine her zaman Zustand store kullanılmalı, "logic" ve "view" katmanları ayrılmalıdır.
 
 Performans: Animasyonlar için react-native-reanimated kullanılmalı ve gereksiz render'ları önlemek için memo ve useSharedValue optimizasyonları zorunlu tutulmalıdır.
+
+Methods: birden fazla yerde kullanılacak utils methodları utils/ altında toplanmalı
+
+Components & UI: Her parça ui elemanı component içinde tanımlanmalı, business olanlarda components/business dosyası içinde tanımlanmalı

@@ -110,6 +110,8 @@ const sizeByHeight = (height * 0.55) / BOARD_SIZE;
 
 export const CELL_SIZE = Math.min(sizeByWidth, sizeByHeight);
 
+export const GRID_PADDING = 2; // Must match Board.tsx gridInner padding
+
 export const CELL_BORDER_RADIUS = 4;
 
 // Test Ad IDs (for development)

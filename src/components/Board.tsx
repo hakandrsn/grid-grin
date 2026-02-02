@@ -65,43 +65,44 @@ export const Board = () => {
     };
   });
   const handleLayout = () => {
-    // 250ms gecikme, ekranın tam çizildiğinden emin olmak içindir
+    // Measure the exact position of gridInner where cells actually start
     setTimeout(() => {
-      viewRef.current?.measureInWindow((x, y, width, height) => {
-        // x ve y'nin 0 gelmesi durumunda ölçümü tekrarla
+      viewRef.current?.measureInWindow((x, y, width) => {
         if (width > 0) {
+          // Now x,y points to where cells begin (inside padding)
           setBoardLayout({ x, y, size: width });
         }
       });
-    }, 250);
+    }, 500);
   };
   return (
-    <Animated.View
-      ref={viewRef}
-      onLayout={handleLayout}
-      style={[styles.container, animatedBorderStyle]}
-    >
-      {board.map((row, rIdx) => (
-        <View key={rIdx} style={styles.row}>
-          {row.map((cellColor, cIdx) => (
-            <Cell
-              key={`${rIdx}-${cIdx}`}
-              row={rIdx}
-              col={cIdx}
-              color={cellColor}
-            />
-          ))}
-        </View>
-      ))}
+    <Animated.View style={[styles.container, animatedBorderStyle]}>
+      <View ref={viewRef} onLayout={handleLayout} style={styles.gridInner}>
+        {board.map((row, rIdx) => (
+          <View key={rIdx} style={styles.row}>
+            {row.map((cellColor, cIdx) => (
+              <Cell
+                key={`${rIdx}-${cIdx}`}
+                row={rIdx}
+                col={cIdx}
+                color={cellColor}
+              />
+            ))}
+          </View>
+        ))}
+      </View>
     </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    padding: 5, // Kenar boşluğunu biraz daralttık
     backgroundColor: THEME.SURFACE,
     borderRadius: 8,
+    overflow: "hidden",
+  },
+  gridInner: {
+    padding: 2, // Very minimal consistent padding
   },
   row: { flexDirection: "row" },
 });

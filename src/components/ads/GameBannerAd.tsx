@@ -1,8 +1,4 @@
-import {
-  useAdActions,
-  useIsAdShowing,
-  useIsBannerReady,
-} from "@/src/store/adStore";
+import { useAdActions, useIsAdShowing } from "@/src/store/adStore";
 import { AD_CONFIG } from "@/src/utils/constants";
 import React, { useEffect, useState } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
@@ -22,8 +18,7 @@ try {
   BannerAdSize = admob.BannerAdSize;
   TestIds = admob.TestIds;
   isAdMobAvailable = true;
-} catch (error) {
-  console.log("📺 AdMob not available for banner");
+} catch {
   isAdMobAvailable = false;
 }
 
@@ -41,7 +36,6 @@ const GameBannerAd: React.FC<GameBannerAdProps> = ({
   onAdFailedToLoad,
 }) => {
   const adActions = useAdActions();
-  const isBannerReady = useIsBannerReady();
   const isAdShowing = useIsAdShowing();
   const [isVisible, setIsVisible] = useState(false);
 
@@ -68,13 +62,11 @@ const GameBannerAd: React.FC<GameBannerAdProps> = ({
   };
 
   const handleAdLoaded = () => {
-    console.log("📺 Banner ad loaded");
     adActions.setBannerReady(true);
     onAdLoaded?.();
   };
 
-  const handleAdFailedToLoad = (error: any) => {
-    console.log("📺 Banner ad failed to load:", error);
+  const handleAdFailedToLoad = (_error: any) => {
     adActions.setBannerReady(false);
     onAdFailedToLoad?.();
   };

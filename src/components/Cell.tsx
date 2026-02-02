@@ -1,6 +1,6 @@
 // src/components/Cell.tsx
 import React, { memo, useEffect, useRef } from "react";
-import { Dimensions, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -8,11 +8,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from "react-native-reanimated";
-import { usePreview } from "../context/PreviewContext";
-import { BOARD_SIZE } from "../utils/constants";
-
-const { width } = Dimensions.get("window");
-const CELL_SIZE = (width - 40) / BOARD_SIZE;
+import { CELL_SIZE } from "../utils/constants";
 
 interface CellProps {
   row: number;
@@ -21,8 +17,6 @@ interface CellProps {
 }
 
 const Cell = ({ row, col, color }: CellProps) => {
-  const { activePreview } = usePreview();
-
   const blockScale = useSharedValue(color ? 1 : 0);
   const blockOpacity = useSharedValue(color ? 1 : 0);
 
@@ -69,39 +63,9 @@ const Cell = ({ row, col, color }: CellProps) => {
     }
 
     prevColor.current = color;
-  }, [color]);
+  }, [color, blockOpacity, blockScale, flashOpacity, flashScale]);
 
   const animatedBlockStyle = useAnimatedStyle(() => {
-    let previewColor = null;
-    let isShowingPreview = false;
-
-    // Check SharedValue for preview
-    if (!color && activePreview.value) {
-      const { row: pR, col: pC, shape, color: pCol } = activePreview.value;
-      const localR = row - pR;
-      const localC = col - pC;
-
-      if (
-        localR >= 0 &&
-        localR < shape.length &&
-        localC >= 0 &&
-        localC < shape[0].length &&
-        shape[localR][localC] === 1
-      ) {
-        previewColor = pCol + "99"; // %60 Opacity for Preview (Daha belirgin)
-        isShowingPreview = true;
-      }
-    }
-
-    if (isShowingPreview) {
-      return {
-        backgroundColor: previewColor || "transparent",
-        transform: [{ scale: 0.9 }], // Preview biraz daha küçük
-        opacity: 1,
-        borderRadius: 6,
-      };
-    }
-
     return {
       // backgroundColor style prop'undan gelecek
       transform: [{ scale: blockScale.value }],

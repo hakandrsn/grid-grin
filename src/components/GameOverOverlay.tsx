@@ -1,94 +1,99 @@
 // src/components/GameOverOverlay.tsx
 import { showInterstitial } from "@/services/adManager";
-import { useAdActions } from "@/src/store/adStore";
+import { useAdActions, useAdStore } from "@/src/store/adStore";
 import { useGameStore } from "@/src/store/useGameStore";
 import { THEME } from "@/src/utils/constants";
 import React, { useEffect, useState } from "react";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Animated, {
-  FadeIn,
   FadeOut,
+  SlideInLeft,
   useAnimatedStyle,
   useSharedValue,
-  withRepeat,
-  withSequence,
   withTiming,
 } from "react-native-reanimated";
 
 interface GameOverOverlayProps {
   onContinue: () => void;
+  onContinueWithAd: () => void;
   onReset: () => void;
 }
 
 export const GameOverOverlay = ({
   onContinue,
+  onContinueWithAd,
   onReset,
 }: GameOverOverlayProps) => {
   const leaderboard = useGameStore((state) => state.leaderboard);
   const score = useGameStore((state) => state.score);
   const canContinue = score >= 500;
 
-  // States
   const [phase, setPhase] = useState<"splash" | "menu">("splash");
   const [loadingAd, setLoadingAd] = useState(false);
+  const { markInterstitialShown } = useAdActions();
+  const isAdReady = useAdStore((state) => state.isInterstitialReady);
 
-  // Ad Logic
-  const { canShowInterstitial, markInterstitialShown } = useAdActions();
-
-  // Animation Values
-  const shake = useSharedValue(0);
+  const modalScale = useSharedValue(0);
 
   useEffect(() => {
-    // Stage 1: Show Splash for 2 seconds
+    // 2 saniye splash göster, sonra modal aç
     const timer = setTimeout(() => {
       setPhase("menu");
+      // Düz scale animasyonu (bounce yok)
+      modalScale.value = withTiming(1, { duration: 400 });
     }, 2000);
 
-    // Trigger "Ufak bounce ile sallanma" (Small shake/bounce)
-    // Sequence: Wait slightly, then small rotate shake
-    shake.value = withRepeat(
-      withSequence(
-        withTiming(15, { duration: 100 }),
-        withTiming(-15, { duration: 100 }),
-        withTiming(0, { duration: 100 }),
-      ),
-      2, // Repeat twice
-      true, // Reverse
-    );
-
     return () => clearTimeout(timer);
-  }, [shake]);
+  }, [modalScale]);
 
-  const handleNewGame = async () => {
-    if (loadingAd) return;
-
-    // Check strict cooldown (2 mins) - passing placeholder args as we made it generic-ish
-    if (canShowInterstitial(1, 1)) {
-      setLoadingAd(true);
-      const watched = await showInterstitial();
-      if (watched) {
-        markInterstitialShown();
-      }
-      setLoadingAd(false);
+  // Sıralama hesapla
+  const getRankInfo = () => {
+    if (score >= leaderboard[0] && leaderboard[0] > 0) {
+      return { text: "🏆 YENİ REKOR!", color: "#FFD700" };
+    } else if (score >= leaderboard[1] && leaderboard[1] > 0) {
+      return { text: "🥈 2. EN İYİ SKORUN!", color: "#C0C0C0" };
+    } else if (score >= leaderboard[2] && leaderboard[2] > 0) {
+      return { text: "🥉 3. EN İYİ SKORUN!", color: "#CD7F32" };
     }
+    return null;
+  };
 
+  const rankInfo = getRankInfo();
+
+  const handleNewGame = () => {
     onReset();
   };
 
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ translateY: shake.value }], // Vertical bounce/shake
-    };
-  });
+  const handleContinueWithAd = async () => {
+    if (loadingAd) return;
 
-  // RENDER: SPLASH PHASE
+    setLoadingAd(true);
+    try {
+      const watched = await showInterstitial();
+      setLoadingAd(false);
+
+      if (watched) {
+        markInterstitialShown();
+        onContinueWithAd();
+      }
+      // Reklam izlenmediyse hiçbir şey yapma (modal açık kalır)
+    } catch {
+      setLoadingAd(false);
+      // Reklam hatası - modal açık kalır
+    }
+  };
+
+  const modalAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: modalScale.value }],
+  }));
+
+  // SPLASH PHASE - Game Over Image
   if (phase === "splash") {
     return (
-      <View style={[styles.overlay, { backgroundColor: "rgba(0,0,0,0)" }]}>
+      <View style={styles.overlay}>
         <Animated.View
-          entering={FadeIn.duration(200)}
-          exiting={FadeOut.duration(300)}
-          style={animatedStyle}
+          entering={SlideInLeft.duration(200)}
+          exiting={FadeOut.duration(150)}
         >
           <Image
             source={require("@/assets/images/streak/game-over.png")}
@@ -100,161 +105,179 @@ export const GameOverOverlay = ({
     );
   }
 
-  // RENDER: MENU PHASE
+  // MENU PHASE - Modal
   return (
-    <Animated.View entering={FadeIn.duration(400)} style={styles.overlay}>
-      <View style={styles.contentContainer}>
-        <Text style={styles.title}>OYUN BİTTİ!</Text>
-        <Text style={styles.score}>{score}</Text>
+    <View style={styles.overlay}>
+      <Animated.View style={[styles.modal, modalAnimatedStyle]}>
+        {/* Header */}
+        <Text style={styles.gameOverText}>OYUN BİTTİ</Text>
 
-        {/* Lider Tablosu */}
-        <View style={styles.leaderboard}>
-          <Text style={styles.lbTitle}>🏆 EN İYİLER 🏆</Text>
-          {leaderboard.map((s, i) => (
-            <View key={i} style={styles.lbRow}>
-              <Text style={styles.lbRank}>{i + 1}.</Text>
-              <Text style={styles.lbScore}>{s > 0 ? s : "---"}</Text>
-            </View>
-          ))}
-        </View>
+        {/* Big Score */}
+        <Text style={styles.scoreText}>{score.toLocaleString()}</Text>
 
-        <View style={styles.actions}>
-          {/* Continue Section */}
-          <View style={styles.continueSection}>
-            <Text style={styles.description}>
-              Parçalar yenilenir ve oyun kaldığı yerden devam eder.
-            </Text>
-            <TouchableOpacity
-              style={[
-                styles.button,
-                styles.primaryButton,
-                !canContinue && styles.disabledButton,
-              ]}
-              onPress={canContinue ? onContinue : undefined}
-              activeOpacity={canContinue ? 0.7 : 1}
-            >
-              <Text
-                style={[styles.buttonText, !canContinue && styles.disabledText]}
-              >
-                DEVAM ET (-500 Puan)
-              </Text>
-            </TouchableOpacity>
-          </View>
+        {/* Rank Info */}
+        {rankInfo && (
+          <Text style={[styles.rankText, { color: rankInfo.color }]}>
+            {rankInfo.text}
+          </Text>
+        )}
 
+        {/* Buttons Row */}
+        <View style={styles.buttonsRow}>
           <TouchableOpacity
-            style={[styles.button, styles.secondaryButton]}
-            onPress={handleNewGame}
-            disabled={loadingAd}
+            style={[
+              styles.button,
+              styles.continueButton,
+              !canContinue && styles.disabledButton,
+            ]}
+            onPress={canContinue ? onContinue : undefined}
+            activeOpacity={canContinue ? 0.7 : 1}
           >
-            <Text style={[styles.buttonText, { color: "#fff" }]}>
-              {loadingAd ? "YÜKLENİYOR..." : "YENİ OYUN BAŞLAT"}
+            <Text
+              style={[styles.buttonText, !canContinue && styles.disabledText]}
+            >
+              DEVAM ET
+            </Text>
+            <Text
+              style={[
+                styles.buttonSubtext,
+                !canContinue && styles.disabledText,
+              ]}
+            >
+              -500 puan · Yeni parçalar
             </Text>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.button, styles.newGameButton]}
+            onPress={handleNewGame}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.buttonText}>YENİ OYUN</Text>
+          </TouchableOpacity>
         </View>
-      </View>
-    </Animated.View>
+
+        {/* Ad Continue Button */}
+        <TouchableOpacity
+          style={[
+            styles.adButton,
+            (loadingAd || !isAdReady) && styles.disabledAdButton,
+          ]}
+          onPress={handleContinueWithAd}
+          disabled={loadingAd || !isAdReady}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.adButtonText}>
+            {loadingAd
+              ? "⏳ REKLAM AÇILIYOR..."
+              : isAdReady
+                ? "🎬 REKLAM İZLE VE DEVAM ET"
+                : "⏳ REKLAM YÜKLENİYOR..."}
+          </Text>
+          <Text style={styles.adButtonSubtext}>Ücretsiz yeni parçalar</Text>
+        </TouchableOpacity>
+      </Animated.View>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(48, 54, 79, 0.98)", // THEME.BACKGROUND with opacity
     justifyContent: "center",
     alignItems: "center",
     zIndex: 2000,
+    backgroundColor: "rgba(0, 0, 0, 0.75)",
   },
-  contentContainer: {
-    width: "100%",
-    alignItems: "center",
-    paddingHorizontal: 30,
+  splashImage: {
+    width: 300,
+    height: 300,
   },
-  title: {
-    color: THEME.TEXT_PRIMARY,
-    fontSize: 42,
-    fontWeight: "800",
-    marginBottom: 10,
-    letterSpacing: 1,
-  },
-  score: {
-    color: THEME.TEXT_SECONDARY, // Beige instead of Cyan
-    fontSize: 80,
-    fontWeight: "900",
-    marginBottom: 40,
-    textShadowColor: "rgba(0,0,0,0.3)",
-    textShadowOffset: { width: 0, height: 4 },
-    textShadowRadius: 10,
-  },
-  leaderboard: {
-    width: "100%",
+  modal: {
+    width: "88%",
     backgroundColor: THEME.SURFACE,
     borderRadius: 24,
-    padding: 20,
-    marginBottom: 40,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.05)",
+    padding: 28,
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "rgba(255, 255, 255, 0.1)",
   },
-  lbTitle: {
-    color: THEME.TEXT_MUTED,
-    fontSize: 16,
-    fontWeight: "bold",
-    marginBottom: 15,
-    textAlign: "center",
-    letterSpacing: 2,
-    marginTop: 5,
+  gameOverText: {
+    fontSize: 32,
+    fontWeight: "900",
+    color: "#fff",
+    letterSpacing: 3,
+    marginBottom: 8,
   },
-  lbRow: {
+  scoreText: {
+    fontSize: 72,
+    fontWeight: "900",
+    color: THEME.TEXT_SECONDARY,
+    marginBottom: 8,
+  },
+  rankText: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 24,
+  },
+  buttonsRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 10,
-    paddingHorizontal: 10,
-  },
-  lbRank: { color: THEME.TEXT_MUTED, fontSize: 20, fontWeight: "600" },
-  lbScore: { color: THEME.TEXT_PRIMARY, fontSize: 20, fontWeight: "700" },
-
-  actions: { width: "100%", gap: 20 },
-  continueSection: { gap: 8, width: "100%" },
-  description: {
-    color: THEME.TEXT_MUTED,
-    fontSize: 13,
-    textAlign: "center",
-    fontStyle: "italic",
+    gap: 12,
+    width: "100%",
+    marginBottom: 12,
   },
   button: {
-    padding: 20,
-    borderRadius: 20,
+    flex: 1,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
   },
-  primaryButton: {
-    backgroundColor: THEME.SURFACE_LIGHT,
-    borderWidth: 1,
-    borderColor: THEME.TEXT_SECONDARY,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
+  continueButton: {
+    backgroundColor: THEME.BUTTON_PRIMARY,
   },
-  secondaryButton: {
-    backgroundColor: "transparent",
+  newGameButton: {
+    backgroundColor: THEME.SURFACE_LIGHT,
     borderWidth: 2,
-    borderColor: THEME.SURFACE_LIGHT,
+    borderColor: "rgba(255, 255, 255, 0.15)",
   },
   disabledButton: {
-    backgroundColor: THEME.SURFACE,
-    borderColor: "transparent",
-    shadowOpacity: 0,
+    backgroundColor: "#333",
+    opacity: 0.5,
   },
   buttonText: {
-    color: THEME.TEXT_PRIMARY,
+    fontSize: 14,
     fontWeight: "800",
-    fontSize: 16,
-    letterSpacing: 0.5,
+    color: "#fff",
   },
-  disabledText: { color: THEME.TEXT_MUTED },
-  splashImage: {
-    width: "90%",
-    aspectRatio: 1,
-    height: undefined,
+  buttonSubtext: {
+    fontSize: 10,
+    color: "rgba(255, 255, 255, 0.7)",
+    marginTop: 2,
+  },
+  disabledText: {
+    color: "rgba(255, 255, 255, 0.4)",
+  },
+  adButton: {
+    width: "100%",
+    paddingVertical: 18,
+    borderRadius: 16,
+    alignItems: "center",
+    backgroundColor: "#4CAF50",
+  },
+  disabledAdButton: {
+    backgroundColor: "#666",
+    opacity: 0.7,
+  },
+  adButtonText: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#fff",
+  },
+  adButtonSubtext: {
+    fontSize: 12,
+    color: "rgba(255, 255, 255, 0.8)",
+    marginTop: 2,
   },
 });

@@ -10,7 +10,6 @@ import { AppState, StyleSheet, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Board } from "../src/components/Board";
 import { ScoreBoard } from "../src/components/ScoreBoard";
-import { PreviewProvider } from "../src/context/PreviewContext";
 import { THEME } from "../src/utils/constants";
 
 export default function Game() {
@@ -24,6 +23,7 @@ export default function Game() {
   const continueWithNewPieces = useGameStore(
     (state) => state.continueWithNewPieces,
   );
+  const continueWithAd = useGameStore((state) => state.continueWithAd);
   const saveGame = useGameStore((state) => state.saveGame);
 
   // Initial Load (if coming directly or reload)
@@ -59,67 +59,66 @@ export default function Game() {
   };
 
   return (
-    <PreviewProvider>
-      <View style={[styles.container]}>
-        <View style={{ flex: 1, paddingTop: top }}>
-          {/* Header Area */}
-          <View style={styles.header}>
-            {/* Back Button (Left) */}
-            <TouchableOpacity
-              onPress={handleBack}
-              style={styles.headerButton}
-              activeOpacity={0.7}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Ionicons name="arrow-back" size={24} color="#fff" />
-            </TouchableOpacity>
+    <View style={[styles.container]}>
+      <View style={{ flex: 1, paddingTop: top + 20 }}>
+        {/* Header Area */}
+        <View style={styles.header}>
+          {/* Back Button (Left) */}
+          <TouchableOpacity
+            onPress={handleBack}
+            style={styles.headerButton}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="arrow-back" size={24} color="#fff" />
+          </TouchableOpacity>
 
-            {/* ScoreBoard (Center) */}
-            <ScoreBoard />
+          {/* ScoreBoard (Center) */}
+          <ScoreBoard />
 
-            {/* Restart Button (Right) */}
-            <TouchableOpacity
-              onPress={resetGame}
-              style={styles.headerButton}
-              activeOpacity={0.7}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Ionicons name="refresh" size={24} color="#fff" />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.gameArea}>
-            <Board />
-          </View>
-          <View style={styles.pieceArea}>
-            {availablePieces.map((piece) => (
-              <View key={piece.id} style={styles.pieceContainer}>
-                <Piece {...piece} />
-              </View>
-            ))}
-          </View>
+          {/* Restart Button (Right) */}
+          <TouchableOpacity
+            onPress={resetGame}
+            style={styles.headerButton}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="refresh" size={24} color="#fff" />
+          </TouchableOpacity>
         </View>
 
-        {/* Banner Ad Section */}
-        <View
-          style={{
-            backgroundColor: THEME.BACKGROUND,
-            width: "100%",
-          }}
-        >
-          <GameBannerAd />
+        <View style={styles.gameArea}>
+          <Board />
         </View>
-
-        <StreakOverlay />
-
-        {isGameOver && (
-          <GameOverOverlay
-            onContinue={continueWithNewPieces}
-            onReset={resetGame}
-          />
-        )}
+        <View style={styles.pieceArea}>
+          {availablePieces.map((piece) => (
+            <View key={piece.id} style={styles.pieceContainer}>
+              <Piece {...piece} />
+            </View>
+          ))}
+        </View>
       </View>
-    </PreviewProvider>
+
+      {/* Banner Ad Section */}
+      <View
+        style={{
+          backgroundColor: THEME.BACKGROUND,
+          width: "100%",
+        }}
+      >
+        <GameBannerAd />
+      </View>
+
+      <StreakOverlay />
+
+      {isGameOver && (
+        <GameOverOverlay
+          onContinue={continueWithNewPieces}
+          onContinueWithAd={continueWithAd}
+          onReset={resetGame}
+        />
+      )}
+    </View>
   );
 }
 

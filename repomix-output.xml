@@ -47,22 +47,29 @@ The content is organized as follows:
 .agent/skills/game-architect.md
 .agent/skills/game-mechanics-master/SKILL.md
 .agent/workflows/polish-to-final.md
+.github/workflows/ios-build.yml
 .gitignore
 app.json
 app/_layout.tsx
+app/game.tsx
 app/index.tsx
 eas.json
 eslint.config.js
 issues.md
 package.json
 README.md
+services/adManager.ts
+src/components/ads/ChapterNativeAd.tsx
+src/components/ads/GameBannerAd.tsx
 src/components/Board.tsx
 src/components/Cell.tsx
 src/components/GameOverOverlay.tsx
 src/components/Piece.tsx
 src/components/PuffExplosion.tsx
 src/components/ScoreBoard.tsx
-src/components/SkiaExplosionLayer.tsx
+src/components/Splash/CustomSplashScreen.tsx
+src/components/StreakOverlay.tsx
+src/store/adStore.ts
 src/store/useGameStore.ts
 src/types/index.ts
 src/utils/constants.ts
@@ -84,14 +91,16 @@ trigger: always_on
 
 ## Interaction Rules
 
-- **Finger Offset**: Kullanıcı parmağı parçayı kapatmamalı; `PREVIEW_OFFSET_Y` her zaman parmağın en az 220px yukarısında hesaplanmalıdır.
-- **Snapping Logic**: Parça, hedef hücrenin %40'lık alanına girdiğinde mıknatıs etkisiyle (preview) oraya çekilmelidir.
+- **Finger Offset**: Kullanıcı parmağı ile parçayı tuttuğun parmağın altında kalmalı ve parçayı boş alana götürebilmeli.
+- **Snapping Logic**: Parça, hedef hüzzrenin %40'ına girdiğinde mıknatıs gibi çekebilmeli.
+- **Move Logic**: bir parçayı sürüklerken dolu hücreler üstünden sürüklenebilir olmalı ama üstünde ike koyamacağını belirgin şekilde göstermelidir.
 - **Puff Animation**: Satır/sütun silindiğinde hücreler `150ms` içinde küçülerek yok olmalı; bu esnada grid arka planı (`emptyGrid`) her zaman görünür kalmalıdır.
 
 ## Scoring & Progression
 
 - **Streak System**: Arka arkaya yapılan her başarılı hamle, `currentStreak * 1.5` çarpanıyla ödüllendirilmelidir.
 - **GameOver**: `availablePieces` içindeki hiçbir parça board'a sığmadığında `isGameOver` anında tetiklenmelidir.
+- **Scrore**: Puanlama, streak kazanımı, yok edilen parçalar gibi ayrı özellikler utils de tutulmalı ve her biri yüksek performans ile kurulmalı.
 </file>
 
 <file path=".agent/rules/global-standards.md">
@@ -122,6 +131,10 @@ Dil ve Stack: Her zaman TypeScript kullanılmalı, mobil arayüzlerde React Nati
 State Yönetimi: Karmaşık UI durumları yerine her zaman Zustand store kullanılmalı, "logic" ve "view" katmanları ayrılmalıdır.
 
 Performans: Animasyonlar için react-native-reanimated kullanılmalı ve gereksiz render'ları önlemek için memo ve useSharedValue optimizasyonları zorunlu tutulmalıdır.
+
+Methods: birden fazla yerde kullanılacak utils methodları utils/ altında toplanmalı
+
+Components & UI: Her parça ui elemanı component içinde tanımlanmalı, business olanlarda components/business dosyası içinde tanımlanmalı
 </file>
 
 <file path=".agent/skills/game-architect.md">
@@ -147,6 +160,8 @@ Performans: Animasyonlar için react-native-reanimated kullanılmalı ve gereksi
 - Grid yerleşimi hesaplanırken `Math.round` ile en yakın hücreyi bul.
 - Yeni parça (shape) üretirken `src/utils/constants.ts` içindeki tanımları baz al.
 - Score hesaplamasında streak bonuslarını `processMove` algoritmasına göre uygula.
+- Animasyonlarda react-native-reanimated kullan.
+-
 
 ## Constraints
 
@@ -170,39 +185,148 @@ description: Projeyi tamamlanmış, markete çıkmaya hazır hale getirecek iş 
 5. **Testing**: 12x12 grid üzerinde tüm parçaların "Game Over" durumuna düşüşünü manuel simüle et.
 </file>
 
-<file path="app/index.tsx">
-// app/index.tsx
+<file path=".github/workflows/ios-build.yml">
+name: iOS Build
+on:
+  workflow_dispatch: # Bu build'i manuel tetiklemeni sağlar
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: 🏗 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🏗 Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.21.1
+          cache: "npm"
+
+      - name: 🏗 Setup Expo
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: 📦 Install dependencies
+        run: npm install
+
+      - name: 🏗 Install EAS CLI
+        run: npm install -g eas-cli
+
+      - name: 🚀 Build iOS
+        run: |
+          eas build --platform ios --profile production --local --non-interactive --output ios-build.ipa
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+
+      - name: 🍎 Submit to App Store
+        run: |
+          eas submit --platform ios --path ios-build.ipa --profile production --non-interactive --no-wait
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+
+      - name: 📤 Upload Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build
+          path: |
+            *.ipa
+            *.tar.gz
+</file>
+
+<file path="app/game.tsx">
+import GameBannerAd from "@/src/components/ads/GameBannerAd";
 import { GameOverOverlay } from "@/src/components/GameOverOverlay";
 import Piece from "@/src/components/Piece";
-import { SkiaExplosionLayer } from "@/src/components/SkiaExplosionLayer";
+import { StreakOverlay } from "@/src/components/StreakOverlay";
 import { useGameStore } from "@/src/store/useGameStore";
-import React, { useEffect } from "react";
-import { StyleSheet, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import React, { useEffect, useRef } from "react";
+import { AppState, StyleSheet, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Board } from "../src/components/Board";
 import { ScoreBoard } from "../src/components/ScoreBoard";
+import { THEME } from "../src/utils/constants";
 
-export default function Index() {
+export default function Game() {
   const { top } = useSafeAreaInsets();
-  const {
-    availablePieces,
-    refreshPieces,
-    isGameOver,
-    score,
-    resetGame,
-    continueWithNewPieces,
-  } = useGameStore();
+  const router = useRouter();
+  const appState = useRef(AppState.currentState);
+  const availablePieces = useGameStore((state) => state.availablePieces);
+  const isGameOver = useGameStore((state) => state.isGameOver);
+  const refreshPieces = useGameStore((state) => state.refreshPieces);
+  const resetGame = useGameStore((state) => state.resetGame);
+  const continueWithNewPieces = useGameStore(
+    (state) => state.continueWithNewPieces,
+  );
+  const saveGame = useGameStore((state) => state.saveGame);
 
+  // Initial Load (if coming directly or reload)
   useEffect(() => {
-    refreshPieces();
-  }, []);
+    // Safety check: If no pieces are present (e.g. fresh reload directly to game), generate them.
+    if (availablePieces.length === 0 && !isGameOver) {
+      refreshPieces();
+    }
+
+    // AppState listener for Autosave
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (
+        appState.current.match(/inactive|background/) &&
+        nextAppState === "active"
+      ) {
+        // App returned to foreground
+      } else if (nextAppState.match(/inactive|background/)) {
+        // App going to background -> Save
+        saveGame();
+      }
+      appState.current = nextAppState;
+    });
+
+    return () => {
+      saveGame(); // Also save on unmount (back to menu)
+      subscription.remove();
+    };
+  }, [availablePieces.length, isGameOver, refreshPieces, saveGame]);
+
+  const handleBack = async () => {
+    await saveGame();
+    router.replace("/");
+  };
 
   return (
     <View style={[styles.container]}>
-      <SkiaExplosionLayer />
-
       <View style={{ flex: 1, paddingTop: top }}>
-        <ScoreBoard />
+        {/* Header Area */}
+        <View style={styles.header}>
+          {/* Back Button (Left) */}
+          <TouchableOpacity
+            onPress={handleBack}
+            style={styles.headerButton}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="arrow-back" size={24} color="#fff" />
+          </TouchableOpacity>
+
+          {/* ScoreBoard (Center) */}
+          <ScoreBoard />
+
+          {/* Restart Button (Right) */}
+          <TouchableOpacity
+            onPress={resetGame}
+            style={styles.headerButton}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="refresh" size={24} color="#fff" />
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.gameArea}>
           <Board />
@@ -216,10 +340,20 @@ export default function Index() {
         </View>
       </View>
 
-      {/* Skia Katmanı en üstte (Canvas) */}
+      {/* Banner Ad Section */}
+      <View
+        style={{
+          backgroundColor: THEME.BACKGROUND,
+          width: "100%",
+        }}
+      >
+        <GameBannerAd />
+      </View>
+
+      <StreakOverlay />
+
       {isGameOver && (
         <GameOverOverlay
-          score={score}
           onContinue={continueWithNewPieces}
           onReset={resetGame}
         />
@@ -231,23 +365,36 @@ export default function Index() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0f0f0f",
+    backgroundColor: THEME.BACKGROUND,
     alignItems: "center",
   },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    width: "100%",
+  },
+  headerButton: {
+    padding: 12,
+    backgroundColor: THEME.SURFACE_LIGHT, // Lighter than BG
+    borderRadius: 16,
+    // borderWidth: 1, // Removed border for cleaner look, or keep?
+    // borderColor: "rgba(255,255,255,0.05)",
+  },
   gameArea: {
-    flex: 0.6,
+    flex: 1, // Allow board to take available space (constrained by CELL_SIZE)
     justifyContent: "center",
     alignItems: "center",
   },
   pieceArea: {
-    flex: 0.4,
+    height: 150,
     width: "100%",
-    backgroundColor: "#141414",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    // Background removed
     justifyContent: "space-around",
     alignItems: "center",
     flexDirection: "row",
+    paddingBottom: 20, // Push slightly up
   },
   pieceContainer: {
     flex: 1,
@@ -263,12 +410,7 @@ const styles = StyleSheet.create({
     zIndex: 2000,
   },
   gameOverText: { color: "#fff", fontSize: 40, fontWeight: "900" },
-  resetButton: {
-    backgroundColor: "#00ffcc",
-    padding: 15,
-    borderRadius: 10,
-    marginTop: 20,
-  },
+  // resetButton removed (duplicate)
   resetButtonText: { color: "#000", fontWeight: "bold", fontSize: 18 },
   gameOverTitle: {
     color: "#fff",
@@ -297,19 +439,43 @@ const styles = StyleSheet.create({
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "channel": "development",
+      "autoIncrement": true
     },
     "preview": {
-      "distribution": "internal"
+      "channel": "preview",
+      "android": {
+        "buildType": "apk"
+      }
     },
     "production": {
-      "autoIncrement": true
+      "channel": "production",
+      "autoIncrement": true,
+      "distribution": "store"
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "ascAppId": "6758456888"
+      }
+    }
   }
 }
+</file>
+
+<file path="eslint.config.js">
+// https://docs.expo.dev/guides/using-eslint/
+const { defineConfig } = require('eslint/config');
+const expoConfig = require('eslint-config-expo/flat');
+
+module.exports = defineConfig([
+  expoConfig,
+  {
+    ignores: ['dist/*'],
+  },
+]);
 </file>
 
 <file path="issues.md">
@@ -326,6 +492,474 @@ const styles = StyleSheet.create({
 - [ ] strike sayısına göre ekranda kayan yazılar geçecek (image de olabilir png ileride ekrana hızlıca gelecek bi anlık duracak ve tekrar gidecek pointer none olacak)
 </file>
 
+<file path="services/adManager.ts">
+import { useAdStore } from "@/src/store/adStore";
+import { AD_CONFIG } from "@/src/utils/constants";
+import { Platform } from "react-native";
+import { MaxAdContentRating } from "react-native-google-mobile-ads";
+
+// ==========================================
+// CHECK IF ADMOB IS AVAILABLE
+// ==========================================
+
+let isAdMobAvailable = false;
+let InterstitialAd: any = null;
+let RewardedAd: any = null;
+let AdEventType: any = null;
+let RewardedAdEventType: any = null;
+let TestIds: any = null;
+
+try {
+  const admob = require("react-native-google-mobile-ads");
+  InterstitialAd = admob.InterstitialAd;
+  RewardedAd = admob.RewardedAd;
+  AdEventType = admob.AdEventType;
+  RewardedAdEventType = admob.RewardedAdEventType;
+  TestIds = admob.TestIds;
+  isAdMobAvailable = true;
+  console.log("📺 AdMob module loaded");
+} catch (error) {
+  console.log("📺 AdMob not available (Expo Go or not configured)");
+  isAdMobAvailable = false;
+}
+
+// ==========================================
+// AD UNIT IDS
+// ==========================================
+
+const getInterstitialId = () => {
+  if (__DEV__ && TestIds) return TestIds.INTERSTITIAL;
+  return Platform.OS === "ios"
+    ? AD_CONFIG.interstitial.ios
+    : AD_CONFIG.interstitial.android;
+};
+
+const getRewardedId = () => {
+  if (__DEV__ && TestIds) return TestIds.REWARDED;
+  return Platform.OS === "ios"
+    ? AD_CONFIG.rewarded.ios
+    : AD_CONFIG.rewarded.android;
+};
+
+// ==========================================
+// AD INSTANCES
+// ==========================================
+
+let interstitialAd: any = null;
+let rewardedAd: any = null;
+let isInterstitialLoaded = false;
+let isRewardedLoaded = false;
+
+// ==========================================
+// INTERSTITIAL ADS
+// ==========================================
+
+export const loadInterstitial = () => {
+  if (!isAdMobAvailable || !InterstitialAd) {
+    console.log("📺 AdMob not available, skipping interstitial load");
+    return;
+  }
+
+  try {
+    interstitialAd = InterstitialAd.createForAdRequest(getInterstitialId());
+
+    interstitialAd.addAdEventListener(AdEventType.LOADED, () => {
+      isInterstitialLoaded = true;
+      useAdStore.getState().actions.setInterstitialReady(true);
+      console.log("📺 Interstitial loaded");
+    });
+
+    interstitialAd.addAdEventListener(AdEventType.CLOSED, () => {
+      isInterstitialLoaded = false;
+      useAdStore.getState().actions.setInterstitialReady(false);
+      loadInterstitial(); // Preload next
+    });
+
+    interstitialAd.addAdEventListener(AdEventType.ERROR, (error: any) => {
+      console.log("📺 Interstitial error:", error);
+      isInterstitialLoaded = false;
+      useAdStore.getState().actions.setInterstitialReady(false);
+    });
+
+    interstitialAd.load();
+  } catch (error) {
+    console.log("📺 Interstitial init error:", error);
+  }
+};
+
+export const showInterstitial = async (): Promise<boolean> => {
+  if (!isAdMobAvailable || !isInterstitialLoaded || !interstitialAd) {
+    console.log("📺 Interstitial not ready");
+    return false;
+  }
+
+  return new Promise((resolve) => {
+    try {
+      // Listen for ad close event BEFORE showing
+      const closeListener = interstitialAd.addAdEventListener(
+        AdEventType.CLOSED,
+        () => {
+          console.log("📺 Interstitial closed by user");
+          useAdStore.getState().actions.setAdShowing(false); // Enable other ads
+          closeListener(); // Remove listener
+          resolve(true); // Ad was watched
+        },
+      );
+
+      // Also handle errors
+      const errorListener = interstitialAd.addAdEventListener(
+        AdEventType.ERROR,
+        () => {
+          console.log("📺 Interstitial error during show");
+          errorListener();
+          resolve(false);
+        },
+      );
+
+      interstitialAd.show();
+      useAdStore.getState().actions.setAdShowing(true); // Disable other ads
+      useAdStore.getState().actions.markInterstitialShown();
+    } catch (error) {
+      console.log("📺 Interstitial show error:", error);
+      useAdStore.getState().actions.setAdShowing(false); // Reset on error
+      resolve(false);
+    }
+  });
+};
+
+// ==========================================
+// REWARDED ADS
+// ==========================================
+
+export const loadRewarded = () => {
+  if (!isAdMobAvailable || !RewardedAd) {
+    console.log("📺 AdMob not available, skipping rewarded load");
+    return;
+  }
+
+  try {
+    rewardedAd = RewardedAd.createForAdRequest(getRewardedId());
+
+    rewardedAd.addAdEventListener(RewardedAdEventType.LOADED, () => {
+      isRewardedLoaded = true;
+      useAdStore.getState().actions.setRewardedReady(true);
+      console.log("🎁 Rewarded loaded");
+    });
+
+    rewardedAd.addAdEventListener(RewardedAdEventType.EARNED_REWARD, () => {
+      console.log("🎁 Reward earned");
+    });
+
+    rewardedAd.addAdEventListener(AdEventType.CLOSED, () => {
+      isRewardedLoaded = false;
+      useAdStore.getState().actions.setRewardedReady(false);
+      loadRewarded(); // Preload next
+    });
+
+    rewardedAd.addAdEventListener(AdEventType.ERROR, (error: any) => {
+      console.log("🎁 Rewarded error:", error);
+      isRewardedLoaded = false;
+      useAdStore.getState().actions.setRewardedReady(false);
+    });
+
+    rewardedAd.load();
+  } catch (error) {
+    console.log("🎁 Rewarded init error:", error);
+  }
+};
+
+export const showRewarded = (): Promise<boolean> => {
+  if (!isAdMobAvailable || !isRewardedLoaded || !rewardedAd) {
+    console.log("🎁 Rewarded not ready");
+    return Promise.resolve(false);
+  }
+
+  return new Promise((resolve) => {
+    const unsubscribeReward = rewardedAd.addAdEventListener(
+      RewardedAdEventType.EARNED_REWARD,
+      () => {
+        unsubscribeReward();
+        useAdStore.getState().actions.setAdShowing(false);
+        useAdStore.getState().actions.markRewardedShown();
+        resolve(true);
+      },
+    );
+
+    const unsubscribeClose = rewardedAd.addAdEventListener(
+      AdEventType.CLOSED,
+      () => {
+        unsubscribeClose();
+        useAdStore.getState().actions.setAdShowing(false);
+      },
+    );
+
+    const unsubscribeError = rewardedAd.addAdEventListener(
+      AdEventType.ERROR,
+      () => {
+        unsubscribeError();
+        useAdStore.getState().actions.setAdShowing(false);
+        resolve(false);
+      },
+    );
+
+    try {
+      if (rewardedAd) {
+        rewardedAd.show();
+        useAdStore.getState().actions.setAdShowing(true);
+      } else {
+        throw new Error("Rewarded ad instance is null");
+      }
+    } catch (error) {
+      console.log("🎁 Rewarded show error:", error);
+      useAdStore.getState().actions.setAdShowing(false);
+      resolve(false);
+    }
+  });
+};
+
+// ==========================================
+// INITIALIZATION
+// ==========================================
+
+// PERFORMANCE: Deferred initialization to prevent blocking splash/animations
+export const initializeAds = () => {
+  if (!isAdMobAvailable) {
+    console.log("📺 AdMob not available, skipping initialization");
+    return;
+  }
+
+  // Defer ad loading to prevent JS bridge contention during startup
+  // This allows splash screen and initial animations to complete smoothly
+  setTimeout(() => {
+    console.log("📺 Initializing ads (deferred)...");
+
+    // Families Policy Configuration
+    if (isAdMobAvailable) {
+      const mobileAds = require("react-native-google-mobile-ads").default;
+      mobileAds()
+        .setRequestConfiguration({
+          // Child-directed setting
+          tagForChildDirectedTreatment: true,
+          // Under-age of consent setting
+          tagForUnderAgeOfConsent: true,
+          // Content rating: General audiences (G)
+          maxAdContentRating: MaxAdContentRating.G,
+        })
+        .then(() => {
+          console.log("📺 AdMob configuration set for Families Policy");
+        });
+    }
+
+    loadInterstitial();
+    loadRewarded();
+  }, 1500); // 1.5s delay after app is interactive
+};
+
+export const isInterstitialReady = () =>
+  isAdMobAvailable && isInterstitialLoaded;
+export const isRewardedReady = () => isAdMobAvailable && isRewardedLoaded;
+</file>
+
+<file path="src/components/ads/ChapterNativeAd.tsx">
+import { AD_CONFIG } from "@/src/utils/constants";
+import React from "react";
+import { Platform, StyleSheet, View } from "react-native";
+
+// ==========================================
+// CHECK IF ADMOB IS AVAILABLE
+// ==========================================
+
+let isAdMobAvailable = false;
+let BannerAd: any = null;
+let BannerAdSize: any = null;
+let TestIds: any = null;
+
+try {
+  const admob = require("react-native-google-mobile-ads");
+  BannerAd = admob.BannerAd;
+  BannerAdSize = admob.BannerAdSize;
+  TestIds = admob.TestIds;
+  isAdMobAvailable = true;
+} catch (error) {
+  console.log("📺 AdMob not available for native ads");
+  isAdMobAvailable = false;
+}
+
+// ==========================================
+// NATIVE AD COMPONENT (Using Medium Rectangle Banner)
+// ==========================================
+
+interface ChapterNativeAdProps {
+  index: number;
+}
+
+const ChapterNativeAd: React.FC<ChapterNativeAdProps> = ({ index }) => {
+  if (!isAdMobAvailable || !BannerAd || !BannerAdSize) {
+    // Fallback: Show nothing if AdMob not available
+    return null;
+  }
+
+  const getBannerId = () => {
+    if (__DEV__ && TestIds) return TestIds.BANNER;
+    return Platform.OS === "ios"
+      ? AD_CONFIG.banner.ios
+      : AD_CONFIG.banner.android;
+  };
+
+  return (
+    <View style={styles.adWrapper}>
+      <BannerAd
+        unitId={getBannerId()}
+        size={BannerAdSize.MEDIUM_RECTANGLE}
+        requestOptions={{
+          requestNonPersonalizedAdsOnly: false,
+        }}
+        onAdLoaded={() => {
+          console.log("📺 Chapter ad loaded");
+        }}
+        onAdFailedToLoad={(error: any) => {
+          console.log("📺 Chapter ad failed:", error);
+        }}
+      />
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  adWrapper: {
+    width: "100%",
+    alignItems: "center",
+    marginVertical: 8,
+  },
+});
+
+export default ChapterNativeAd;
+</file>
+
+<file path="src/components/ads/GameBannerAd.tsx">
+import {
+  useAdActions,
+  useIsAdShowing,
+  useIsBannerReady,
+} from "@/src/store/adStore";
+import { AD_CONFIG } from "@/src/utils/constants";
+import React, { useEffect, useState } from "react";
+import { Platform, StyleSheet, Text, View } from "react-native";
+
+// ==========================================
+// CHECK IF ADMOB IS AVAILABLE
+// ==========================================
+
+let isAdMobAvailable = false;
+let BannerAd: any = null;
+let BannerAdSize: any = null;
+let TestIds: any = null;
+
+try {
+  const admob = require("react-native-google-mobile-ads");
+  BannerAd = admob.BannerAd;
+  BannerAdSize = admob.BannerAdSize;
+  TestIds = admob.TestIds;
+  isAdMobAvailable = true;
+} catch (error) {
+  console.log("📺 AdMob not available for banner");
+  isAdMobAvailable = false;
+}
+
+// ==========================================
+// BANNER AD COMPONENT
+// ==========================================
+
+interface GameBannerAdProps {
+  onAdLoaded?: () => void;
+  onAdFailedToLoad?: () => void;
+}
+
+const GameBannerAd: React.FC<GameBannerAdProps> = ({
+  onAdLoaded,
+  onAdFailedToLoad,
+}) => {
+  const adActions = useAdActions();
+  const isBannerReady = useIsBannerReady();
+  const isAdShowing = useIsAdShowing();
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    if (isAdMobAvailable) {
+      setIsVisible(true);
+    }
+  }, []);
+
+  if (!isAdMobAvailable || !BannerAd || !BannerAdSize) {
+    return null;
+  }
+
+  // Hide banner if a full-screen ad involves ensuring no multiple ads are shown
+  if (isAdShowing) {
+    return null;
+  }
+
+  const getBannerId = () => {
+    if (__DEV__ && TestIds) return TestIds.BANNER;
+    return Platform.OS === "ios"
+      ? AD_CONFIG.banner.ios
+      : AD_CONFIG.banner.android;
+  };
+
+  const handleAdLoaded = () => {
+    console.log("📺 Banner ad loaded");
+    adActions.setBannerReady(true);
+    onAdLoaded?.();
+  };
+
+  const handleAdFailedToLoad = (error: any) => {
+    console.log("📺 Banner ad failed to load:", error);
+    adActions.setBannerReady(false);
+    onAdFailedToLoad?.();
+  };
+
+  if (!isVisible) return null;
+
+  return (
+    <View style={styles.bannerContainer}>
+      <Text style={styles.adLabel}>Reklam</Text>
+      <View style={styles.adWrapper}>
+        <BannerAd
+          unitId={getBannerId()}
+          size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+          requestOptions={{
+            requestNonPersonalizedAdsOnly: false,
+          }}
+          onAdLoaded={handleAdLoaded}
+          onAdFailedToLoad={handleAdFailedToLoad}
+        />
+      </View>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  bannerContainer: {
+    width: "100%",
+    alignItems: "center",
+    paddingVertical: 10, // Add spacing around banner
+  },
+  adLabel: {
+    fontSize: 10,
+    color: "#fff",
+    marginBottom: 4,
+    opacity: 0.7,
+  },
+  adWrapper: {
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 50, // Minimum height for banner
+  },
+});
+
+export default GameBannerAd;
+</file>
+
 <file path="src/components/Board.tsx">
 // src/components/Board.tsx
 import React, { useEffect, useRef } from "react";
@@ -339,12 +973,14 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { useGameStore } from "../store/useGameStore";
+import { THEME } from "../utils/constants";
 import Cell from "./Cell";
 
 export const Board = () => {
   const viewRef = useRef<View>(null);
   const setBoardLayout = useGameStore((state) => state.setBoardLayout);
-  const { board, streak, preview } = useGameStore();
+  const board = useGameStore((state) => state.board);
+  const streak = useGameStore((state) => state.streak);
 
   // Board titremesini kaldırıyoruz (User requested: "titreme olmasın board sabit kalsın")
   const pulse = useSharedValue(0);
@@ -363,7 +999,7 @@ export const Board = () => {
     } else {
       pulse.value = 0; // Reset
     }
-  }, [streak]);
+  }, [streak, pulse]);
 
   const animatedBorderStyle = useAnimatedStyle(() => {
     // Basit bir renk geçişi (Streak yokken sabit, varken renkli)
@@ -392,15 +1028,15 @@ export const Board = () => {
     };
   });
   const handleLayout = () => {
-    // 250ms gecikme, ekranın tam çizildiğinden emin olmak içindir
+    // Measure the exact position and size of the grid container
     setTimeout(() => {
-      viewRef.current?.measureInWindow((x, y, width, height) => {
-        // x ve y'nin 0 gelmesi durumunda ölçümü tekrarla
+      viewRef.current?.measureInWindow((x, y, width) => {
         if (width > 0) {
+          // Store the top-left corner of the grid
           setBoardLayout({ x, y, size: width });
         }
       });
-    }, 250);
+    }, 500); // Give it a bit more time to settle
   };
   return (
     <Animated.View
@@ -408,48 +1044,32 @@ export const Board = () => {
       onLayout={handleLayout}
       style={[styles.container, animatedBorderStyle]}
     >
-      {board.map((row, rIdx) => (
-        <View key={rIdx} style={styles.row}>
-          {row.map((cellColor, cIdx) => {
-            let previewColor = null;
-
-            // Preview hesaplamasını güvenli hale getiriyoruz
-            if (preview) {
-              const { row: pR, col: pC, shape, color: pCol } = preview;
-              const localR = rIdx - pR;
-              const localC = cIdx - pC;
-
-              // Sadece parça sınırları içindeyse ve şekil hücresi doluysa (1) göster
-              if (
-                localR >= 0 &&
-                localR < shape.length &&
-                localC >= 0 &&
-                localC < shape[0].length &&
-                shape[localR][localC] === 1
-              ) {
-                previewColor = pCol + "44"; // %25 Opaklık ile daha şık preview
-              }
-            }
-
-            return (
+      <View style={styles.gridInner}>
+        {board.map((row, rIdx) => (
+          <View key={rIdx} style={styles.row}>
+            {row.map((cellColor, cIdx) => (
               <Cell
                 key={`${rIdx}-${cIdx}`}
+                row={rIdx}
+                col={cIdx}
                 color={cellColor}
-                previewColor={previewColor}
               />
-            );
-          })}
-        </View>
-      ))}
+            ))}
+          </View>
+        ))}
+      </View>
     </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    padding: 5, // Kenar boşluğunu biraz daralttık
-    backgroundColor: "#1a1a1a",
+    backgroundColor: THEME.SURFACE,
     borderRadius: 8,
+    overflow: "hidden",
+  },
+  gridInner: {
+    padding: 2, // Very minimal consistent padding
   },
   row: { flexDirection: "row" },
 });
@@ -472,63 +1092,95 @@ const { width } = Dimensions.get("window");
 const CELL_SIZE = (width - 40) / BOARD_SIZE;
 
 interface CellProps {
+  row: number;
+  col: number;
   color: string | null;
-  previewColor: string | null;
 }
 
-const Cell = ({ color, previewColor }: CellProps) => {
+const Cell = ({ row, col, color }: CellProps) => {
   const blockScale = useSharedValue(color ? 1 : 0);
   const blockOpacity = useSharedValue(color ? 1 : 0);
+
+  // Logic tracking for transitions
   const prevColor = useRef(color);
 
+  // Visual persistence for clear animation
+  const lastValidColor = useRef(color);
+  if (color) lastValidColor.current = color;
+
+  // Flash / Burst Animation State
+  const flashScale = useSharedValue(0.8);
+  const flashOpacity = useSharedValue(0);
+
   useEffect(() => {
-    // 1. Silinme (Puff) Animasyonu
+    // 1. Silinme (Puff) & Flash Animasyonu
     if (color === null && prevColor.current !== null) {
+      // Cell: Hafifçe büyüyüp içine çökme (Implosion effect)
       blockScale.value = withSequence(
-        withTiming(1.2, { duration: 60 }),
-        withTiming(0, { duration: 100, easing: Easing.out(Easing.quad) }),
+        withTiming(1.1, { duration: 50 }),
+        withTiming(0, { duration: 200, easing: Easing.inOut(Easing.quad) }),
       );
-      blockOpacity.value = withTiming(0, { duration: 120 });
+      blockOpacity.value = withTiming(0, { duration: 200 });
+
+      // Flash: Patlama efekti (Daha derli toplu)
+      flashScale.value = 0.8;
+      flashOpacity.value = 1;
+
+      flashScale.value = withTiming(1.4, {
+        duration: 300,
+        easing: Easing.out(Easing.quad),
+      });
+      flashOpacity.value = withTiming(0, { duration: 300 });
     }
-    // 2. Yeni blok yerleştirildiğinde
+    // 2. Yeni blok yerleştirildiğinde (Animasyonsuz, direkt görünüm)
     else if (color !== null && prevColor.current === null) {
-      blockScale.value = withTiming(1, { duration: 80 });
-      blockOpacity.value = withTiming(1, { duration: 80 });
+      blockScale.value = 1;
+      blockOpacity.value = 1;
     }
-    // 3. Başlangıç veya Reset durumu (Anlık güncelleme)
+    // 3. Başlangıç veya Reset durumu
     else if (color !== null) {
       blockScale.value = 1;
       blockOpacity.value = 1;
     }
 
     prevColor.current = color;
-  }, [color]);
+  }, [color, blockOpacity, blockScale, flashOpacity, flashScale]);
 
   const animatedBlockStyle = useAnimatedStyle(() => {
-    // Öncelik: Kalıcı Blok > Önizleme (Gölge)
-    const isShowingPreview = !color && previewColor;
-
     return {
-      backgroundColor: color || previewColor || "transparent",
-      // Preview gösterilirken ölçek her zaman 1 olmalı
-      transform: [{ scale: isShowingPreview ? 1 : blockScale.value }],
-      opacity: color ? blockOpacity.value : previewColor ? 1 : 0,
-      position: "absolute",
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      borderRadius: 4,
+      // backgroundColor style prop'undan gelecek
+      transform: [{ scale: blockScale.value }],
+      opacity: blockOpacity.value,
     };
   });
 
+  const animatedFlashStyle = useAnimatedStyle(() => ({
+    opacity: flashOpacity.value,
+    transform: [{ scale: flashScale.value }],
+    backgroundColor: "white", // Flash her zaman beyaz parlama
+  }));
+
+  const displayColor = color || lastValidColor.current || "transparent";
+
   return (
     <View style={styles.cellContainer}>
-      {/* Sabit Grid Arka Planı - Asla kaybolmaz ve biraz daha belirgin */}
+      {/* Sabit Grid Arka Planı */}
       <View style={styles.emptyGrid} />
 
       {/* Animasyonlu Blok veya Önizleme Katmanı */}
-      <Animated.View style={animatedBlockStyle} />
+      <Animated.View
+        style={[
+          styles.block,
+          { backgroundColor: displayColor },
+          animatedBlockStyle,
+        ]}
+      />
+
+      {/* Patlama Efekti (Flash) - Sadece yok olurken görünür */}
+      <Animated.View
+        style={[styles.flash, animatedFlashStyle]}
+        pointerEvents="none"
+      />
     </View>
   );
 };
@@ -550,6 +1202,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.05)",
   },
+  block: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 4,
+  },
+  flash: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 4,
+    zIndex: 10,
+    backgroundColor: "white",
+  },
 });
 
 export default memo(Cell);
@@ -557,42 +1223,158 @@ export default memo(Cell);
 
 <file path="src/components/GameOverOverlay.tsx">
 // src/components/GameOverOverlay.tsx
-import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import Animated, { FadeIn } from "react-native-reanimated";
+import { showInterstitial } from "@/services/adManager";
+import { useAdActions } from "@/src/store/adStore";
+import { useGameStore } from "@/src/store/useGameStore";
+import { THEME } from "@/src/utils/constants";
+import React, { useEffect, useState } from "react";
+import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import Animated, {
+  FadeIn,
+  FadeOut,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
 
 interface GameOverOverlayProps {
-  score: number;
   onContinue: () => void;
   onReset: () => void;
 }
 
 export const GameOverOverlay = ({
-  score,
   onContinue,
   onReset,
 }: GameOverOverlayProps) => {
+  const leaderboard = useGameStore((state) => state.leaderboard);
+  const score = useGameStore((state) => state.score);
+  const canContinue = score >= 500;
+
+  // States
+  const [phase, setPhase] = useState<"splash" | "menu">("splash");
+  const [loadingAd, setLoadingAd] = useState(false);
+
+  // Ad Logic
+  const { canShowInterstitial, markInterstitialShown } = useAdActions();
+
+  // Animation Values
+  const shake = useSharedValue(0);
+
+  useEffect(() => {
+    // Stage 1: Show Splash for 2 seconds
+    const timer = setTimeout(() => {
+      setPhase("menu");
+    }, 2000);
+
+    // Trigger "Ufak bounce ile sallanma" (Small shake/bounce)
+    // Sequence: Wait slightly, then small rotate shake
+    shake.value = withRepeat(
+      withSequence(
+        withTiming(15, { duration: 100 }),
+        withTiming(-15, { duration: 100 }),
+        withTiming(0, { duration: 100 }),
+      ),
+      2, // Repeat twice
+      true, // Reverse
+    );
+
+    return () => clearTimeout(timer);
+  }, [shake]);
+
+  const handleNewGame = async () => {
+    if (loadingAd) return;
+
+    // Check strict cooldown (2 mins) - passing placeholder args as we made it generic-ish
+    if (canShowInterstitial(1, 1)) {
+      setLoadingAd(true);
+      const watched = await showInterstitial();
+      if (watched) {
+        markInterstitialShown();
+      }
+      setLoadingAd(false);
+    }
+
+    onReset();
+  };
+
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ translateY: shake.value }], // Vertical bounce/shake
+    };
+  });
+
+  // RENDER: SPLASH PHASE
+  if (phase === "splash") {
+    return (
+      <View style={[styles.overlay, { backgroundColor: "rgba(0,0,0,0)" }]}>
+        <Animated.View
+          entering={FadeIn.duration(200)}
+          exiting={FadeOut.duration(300)}
+          style={animatedStyle}
+        >
+          <Image
+            source={require("@/assets/images/streak/game-over.png")}
+            style={styles.splashImage}
+            resizeMode="contain"
+          />
+        </Animated.View>
+      </View>
+    );
+  }
+
+  // RENDER: MENU PHASE
   return (
     <Animated.View entering={FadeIn.duration(400)} style={styles.overlay}>
-      <Text style={styles.title}>OYUN BİTTİ!</Text>
-      <Text style={styles.score}>{score}</Text>
+      <View style={styles.contentContainer}>
+        <Text style={styles.title}>OYUN BİTTİ!</Text>
+        <Text style={styles.score}>{score}</Text>
 
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity
-          style={[styles.button, styles.primaryButton]}
-          onPress={onContinue}
-        >
-          <Text style={styles.buttonText}>YENİ PARÇALARLA DEVAM ET</Text>
-        </TouchableOpacity>
+        {/* Lider Tablosu */}
+        <View style={styles.leaderboard}>
+          <Text style={styles.lbTitle}>🏆 EN İYİLER 🏆</Text>
+          {leaderboard.map((s, i) => (
+            <View key={i} style={styles.lbRow}>
+              <Text style={styles.lbRank}>{i + 1}.</Text>
+              <Text style={styles.lbScore}>{s > 0 ? s : "---"}</Text>
+            </View>
+          ))}
+        </View>
 
-        <TouchableOpacity
-          style={[styles.button, styles.secondaryButton]}
-          onPress={onReset}
-        >
-          <Text style={[styles.buttonText, { color: "#fff" }]}>
-            YENİDEN BAŞLA
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.actions}>
+          {/* Continue Section */}
+          <View style={styles.continueSection}>
+            <Text style={styles.description}>
+              Parçalar yenilenir ve oyun kaldığı yerden devam eder.
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.button,
+                styles.primaryButton,
+                !canContinue && styles.disabledButton,
+              ]}
+              onPress={canContinue ? onContinue : undefined}
+              activeOpacity={canContinue ? 0.7 : 1}
+            >
+              <Text
+                style={[styles.buttonText, !canContinue && styles.disabledText]}
+              >
+                DEVAM ET (-500 Puan)
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity
+            style={[styles.button, styles.secondaryButton]}
+            onPress={handleNewGame}
+            disabled={loadingAd}
+          >
+            <Text style={[styles.buttonText, { color: "#fff" }]}>
+              {loadingAd ? "YÜKLENİYOR..." : "YENİ OYUN BAŞLAT"}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </Animated.View>
   );
@@ -601,30 +1383,111 @@ export const GameOverOverlay = ({
 const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.9)",
+    backgroundColor: "rgba(48, 54, 79, 0.98)", // THEME.BACKGROUND with opacity
     justifyContent: "center",
     alignItems: "center",
     zIndex: 2000,
   },
-  title: { color: "#fff", fontSize: 44, fontWeight: "900", marginBottom: 10 },
+  contentContainer: {
+    width: "100%",
+    alignItems: "center",
+    paddingHorizontal: 30,
+  },
+  title: {
+    color: THEME.TEXT_PRIMARY,
+    fontSize: 42,
+    fontWeight: "800",
+    marginBottom: 10,
+    letterSpacing: 1,
+  },
   score: {
-    color: "#00ffcc",
-    fontSize: 60,
+    color: THEME.TEXT_SECONDARY, // Beige instead of Cyan
+    fontSize: 80,
     fontWeight: "900",
     marginBottom: 40,
+    textShadowColor: "rgba(0,0,0,0.3)",
+    textShadowOffset: { width: 0, height: 4 },
+    textShadowRadius: 10,
   },
-  buttonContainer: { width: "80%", gap: 15 },
-  button: { padding: 20, borderRadius: 15, alignItems: "center" },
-  primaryButton: { backgroundColor: "#ffcc00" },
-  secondaryButton: { backgroundColor: "#333" },
-  buttonText: { color: "#000", fontWeight: "bold", fontSize: 16 },
+  leaderboard: {
+    width: "100%",
+    backgroundColor: THEME.SURFACE,
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 40,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.05)",
+  },
+  lbTitle: {
+    color: THEME.TEXT_MUTED,
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 15,
+    textAlign: "center",
+    letterSpacing: 2,
+    marginTop: 5,
+  },
+  lbRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 10,
+    paddingHorizontal: 10,
+  },
+  lbRank: { color: THEME.TEXT_MUTED, fontSize: 20, fontWeight: "600" },
+  lbScore: { color: THEME.TEXT_PRIMARY, fontSize: 20, fontWeight: "700" },
+
+  actions: { width: "100%", gap: 20 },
+  continueSection: { gap: 8, width: "100%" },
+  description: {
+    color: THEME.TEXT_MUTED,
+    fontSize: 13,
+    textAlign: "center",
+    fontStyle: "italic",
+  },
+  button: {
+    padding: 20,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  primaryButton: {
+    backgroundColor: THEME.SURFACE_LIGHT,
+    borderWidth: 1,
+    borderColor: THEME.TEXT_SECONDARY,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+  },
+  secondaryButton: {
+    backgroundColor: "transparent",
+    borderWidth: 2,
+    borderColor: THEME.SURFACE_LIGHT,
+  },
+  disabledButton: {
+    backgroundColor: THEME.SURFACE,
+    borderColor: "transparent",
+    shadowOpacity: 0,
+  },
+  buttonText: {
+    color: THEME.TEXT_PRIMARY,
+    fontWeight: "800",
+    fontSize: 16,
+    letterSpacing: 0.5,
+  },
+  disabledText: { color: THEME.TEXT_MUTED },
+  splashImage: {
+    width: "90%",
+    aspectRatio: 1,
+    height: undefined,
+  },
 });
 </file>
 
 <file path="src/components/Piece.tsx">
 // src/components/Piece.tsx
 import React, { memo } from "react";
-import { Dimensions, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   Easing,
@@ -634,11 +1497,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import { useGameStore } from "../store/useGameStore";
-import { BOARD_SIZE } from "../utils/constants";
-
-const { width } = Dimensions.get("window");
-const CELL_SIZE = (width - 40) / BOARD_SIZE;
-const PREVIEW_OFFSET_Y = 220; // Daha yukarıda, parmak altında kalmaz
+import { CELL_SIZE } from "../utils/constants";
 
 const Piece = ({
   id,
@@ -649,18 +1508,22 @@ const Piece = ({
   shape: number[][];
   color: string;
 }) => {
-  const { onDrop, boardLayout, updatePreview } = useGameStore();
+  const onDrop = useGameStore((state) => state.onDrop);
+  const boardLayout = useGameStore((state) => state.boardLayout);
+  const canPlacePiece = useGameStore((state) => state.canPlacePiece);
 
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
   const isDragging = useSharedValue(false);
   const grabX = useSharedValue(0);
   const grabY = useSharedValue(0);
-  const lastRow = useSharedValue(-1);
-  const lastCol = useSharedValue(-1);
 
-  // Preview yüksekliği arttırıldı (Parmağın çok daha üzerinde)
+  const initialPieceScale = 0.8;
+  const draggingPieceScale = 1.0;
+  const FINGER_OFFSET_Y = -60; // Parça parmağın üstünde görünsün
+
   const gesture = Gesture.Pan()
+    .runOnJS(true)
     .onStart((e) => {
       isDragging.value = true;
       grabX.value = e.x;
@@ -668,49 +1531,118 @@ const Piece = ({
     })
     .onUpdate((e) => {
       translateX.value = e.translationX;
-      translateY.value = e.translationY;
-
-      if (boardLayout) {
-        const absX = e.absoluteX - grabX.value;
-        const absY = e.absoluteY - grabY.value - PREVIEW_OFFSET_Y;
-
-        const col = Math.round((absX - (boardLayout.x + 5)) / CELL_SIZE);
-        const row = Math.round((absY - (boardLayout.y + 5)) / CELL_SIZE);
-
-        // Sadece koordinat değişirse güncelle (1 FPS sorununu çözer)
-        if (row !== lastRow.value || col !== lastCol.value) {
-          lastRow.value = row;
-          lastCol.value = col;
-          scheduleOnRN(updatePreview, { row, col, shape, color });
-        }
-      }
+      translateY.value = e.translationY + FINGER_OFFSET_Y;
     })
     .onEnd((e) => {
       isDragging.value = false;
+
+      let placed = false;
       if (boardLayout) {
-        const absX = e.absoluteX - grabX.value;
-        const absY = e.absoluteY - grabY.value - PREVIEW_OFFSET_Y;
-        const col = Math.round((absX - (boardLayout.x + 5)) / CELL_SIZE);
-        const row = Math.round((absY - (boardLayout.y + 5)) / CELL_SIZE);
-        scheduleOnRN(onDrop, id, shape, row, col, color);
+        // Board başlangıç noktası (padding dahil)
+        const boardOriginX = boardLayout.x + 2;
+        const boardOriginY = boardLayout.y + 2;
+
+        // Parçanın sol üst köşesinin anlık ekran konumu
+        const pieceScreenX = e.absoluteX - grabX.value;
+        const pieceScreenY = e.absoluteY - grabY.value + FINGER_OFFSET_Y;
+
+        // Parçanın grid üzerindeki "kesirli" (float) başlangıç indeksi
+        // Örn: 3.6 satır, 4.2 sütun gibi
+        const floatCol = (pieceScreenX - boardOriginX) / CELL_SIZE;
+        const floatRow = (pieceScreenY - boardOriginY) / CELL_SIZE;
+
+        // ALAN BAZLI SNAP MANTIĞI:
+        // Parçanın olası "hedef" hücrelerini belirlemek için en yakın tam sayıları alıyoruz.
+        // Ancak sadece Math.round yetmez, bir "bütün" olarak en iyi oturduğu yeri bulmalıyız.
+
+        // Adaylar: En yakın tam sayı ve etrafı
+        const candidates = [
+          { r: Math.round(floatRow), c: Math.round(floatCol) }, // En yakın (Merkez)
+          { r: Math.floor(floatRow), c: Math.floor(floatCol) }, // Sol Üst
+          { r: Math.ceil(floatRow), c: Math.ceil(floatCol) }, // Sağ Alt
+          { r: Math.floor(floatRow), c: Math.ceil(floatCol) }, // Sağ Üst
+          { r: Math.ceil(floatRow), c: Math.floor(floatCol) }, // Sol Alt
+        ];
+
+        // Mükerrer adayları temizle
+        const uniqueCandidates = candidates.filter(
+          (v, i, a) => a.findIndex((t) => t.r === v.r && t.c === v.c) === i,
+        );
+
+        let bestCandidate = null;
+        let maxOverlap = -1;
+
+        // Her adayı test et: "Eğer parçayı buraya koyarsam, elimdeki parça ile hedef ne kadar örtüşüyor?"
+        // Aslında burada "overlap" (örtüşme) hesabı yapıyoruz.
+        // Kullanıcının bıraktığı "float" konum ile, adayın "tam sayı" konumu arasındaki mesafe ne kadar azsa,
+        // örtüşme o kadar fazladır.
+
+        for (const cand of uniqueCandidates) {
+          if (canPlacePiece(shape, cand.r, cand.c)) {
+            // Öklid mesafesi yerine "Overlap Alanı" mantığına benzer bir puanlama:
+            // 1 - Uzaklık. (Uzaklık 0 ise puan 1 tam puan)
+
+            const distR = Math.abs(cand.r - floatRow);
+            const distC = Math.abs(cand.c - floatCol);
+
+            // Basit bir "yakınlık puanı" (Ters mesafe)
+            // Mesafelerin karesini alarak uzak olanları daha çok cezalandırıyoruz.
+            const score = 1 - (distR * distR + distC * distC);
+
+            if (score > maxOverlap) {
+              maxOverlap = score;
+              bestCandidate = cand;
+            }
+          }
+        }
+
+        // Eğer geçerli bir aday bulunduysa ve belli bir mantık dahilindeyse
+        if (bestCandidate) {
+          const { r, c } = bestCandidate;
+
+          const snapX = c * CELL_SIZE + boardOriginX;
+          const snapY = r * CELL_SIZE + boardOriginY;
+
+          // Görsel kaydırma
+          const currentAbsX = pieceScreenX;
+          const currentAbsY = pieceScreenY;
+
+          const targetTranslateX = e.translationX + (snapX - currentAbsX);
+          const targetTranslateY = e.translationY + (snapY - currentAbsY);
+
+          translateX.value = withTiming(targetTranslateX, { duration: 50 });
+          translateY.value = withTiming(targetTranslateY, { duration: 50 });
+
+          scheduleOnRN(onDrop, id, shape, r, c, color);
+          placed = true;
+        }
       }
-      translateX.value = withTiming(0, {
-        duration: 150,
-        easing: Easing.out(Easing.quad),
-      });
-      translateY.value = withTiming(0, {
-        duration: 150,
-        easing: Easing.out(Easing.quad),
-      });
-      lastRow.value = -1;
-      lastCol.value = -1;
+
+      if (!placed) {
+        // Yerleşmediyse geri gönder
+        translateX.value = withTiming(0, {
+          duration: 250,
+          easing: Easing.out(Easing.back(1.5)),
+        });
+        translateY.value = withTiming(0, {
+          duration: 250,
+          easing: Easing.out(Easing.back(1.5)),
+        });
+      }
     });
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [
       { translateX: translateX.value },
       { translateY: translateY.value },
-      { scale: withTiming(isDragging.value ? 1.05 : 0.8, { duration: 150 }) },
+      {
+        scale: withTiming(
+          isDragging.value ? draggingPieceScale : initialPieceScale,
+          {
+            duration: 150,
+          },
+        ),
+      },
     ],
     zIndex: isDragging.value ? 1000 : 1,
     opacity: withTiming(isDragging.value ? 0.9 : 1, { duration: 150 }),
@@ -889,9 +1821,11 @@ export const PuffExplosion = memo(PuffExplosionComponent);
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useGameStore } from "../store/useGameStore";
+import { THEME } from "../utils/constants";
 
 export const ScoreBoard = () => {
-  const { score, streak } = useGameStore();
+  const score = useGameStore((state) => state.score);
+  const streak = useGameStore((state) => state.streak);
 
   return (
     <View style={styles.container}>
@@ -899,12 +1833,17 @@ export const ScoreBoard = () => {
         <Text style={styles.label}>SCORE</Text>
         <Text style={styles.value}>{score}</Text>
       </View>
-      {streak > 0 && (
-        <View style={styles.statBox}>
-          <Text style={[styles.label, { color: "#ffcc00" }]}>STREAK</Text>
-          <Text style={[styles.value, { color: "#ffcc00" }]}>x{streak}</Text>
-        </View>
-      )}
+
+      <View style={styles.divider} />
+
+      <View style={styles.statBox}>
+        <Text style={[styles.label, { color: THEME.TEXT_SECONDARY }]}>
+          STREAK
+        </Text>
+        <Text style={[styles.value, { color: THEME.TEXT_SECONDARY }]}>
+          x{streak || 0}
+        </Text>
+      </View>
     </View>
   );
 };
@@ -912,153 +1851,596 @@ export const ScoreBoard = () => {
 const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
-    justifyContent: "space-around",
-    width: "100%",
-    paddingVertical: 20,
-    flex: 0.2,
+    alignItems: "center",
+    backgroundColor: THEME.SURFACE,
+    borderRadius: 16,
+    padding: 8,
+    paddingHorizontal: 24, // Slightly wider for better look
+    gap: 20,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.05)",
   },
   statBox: {
-    alignItems: "center",
+    alignItems: "center", // Center align text inside box for symmetry
+  },
+  divider: {
+    width: 1,
+    height: 24,
+    backgroundColor: THEME.TEXT_MUTED,
+    opacity: 0.2,
   },
   label: {
-    color: "#aaa",
-    fontSize: 12,
+    color: THEME.TEXT_MUTED,
+    fontSize: 10,
     fontWeight: "bold",
+    marginBottom: 2,
+    textAlign: "center",
   },
   value: {
-    color: "#fff",
-    fontSize: 32,
+    color: THEME.TEXT_PRIMARY,
+    fontSize: 20,
     fontWeight: "900",
+    textAlign: "center",
   },
 });
 </file>
 
-<file path="src/components/SkiaExplosionLayer.tsx">
-import { Blur, Canvas, Circle, Group, Rect } from "@shopify/react-native-skia";
+<file path="src/components/Splash/CustomSplashScreen.tsx">
+import { initializeAds } from "@/services/adManager";
 import React, { useEffect } from "react";
-import { StyleSheet } from "react-native";
-import {
+import { Dimensions, Image, StyleSheet, Text, View } from "react-native";
+import Animated, {
   Easing,
-  useDerivedValue,
+  runOnJS,
+  useAnimatedStyle,
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
-import { useGameStore } from "../store/useGameStore";
-import { BOARD_SIZE } from "../utils/constants";
 
-// TEKİL PARÇACIK: Hook hatasını önlemek için ayrı bileşen
-const Particle = ({ angle, x, y, color, progress, speed }: any) => {
-  const cx = useDerivedValue(
-    () => x + Math.cos(angle) * (progress.value * speed),
-  );
-  const cy = useDerivedValue(
-    () => y + Math.sin(angle) * (progress.value * speed),
-  );
-  const r = useDerivedValue(() => (1 - progress.value) * 5);
-  const opacity = useDerivedValue(() => 1 - progress.value);
+interface CustomSplashScreenProps {
+  onFinish: () => void;
+}
 
-  return <Circle cx={cx} cy={cy} r={r} color={color} opacity={opacity} />;
-};
+const { width } = Dimensions.get("window");
+const LOGO_SIZE = width * 0.4;
+const BAR_WIDTH = width * 0.7;
+const BAR_HEIGHT = 8;
 
-const LineBeam = ({ line, layout, progress }: any) => {
-  const actualSize = layout.size - 10;
-  const cellSize = actualSize / BOARD_SIZE;
-
-  const x =
-    line.type === "row" ? layout.x + 5 : layout.x + 5 + line.index * cellSize;
-  const y =
-    line.type === "row" ? layout.y + 5 + line.index * cellSize : layout.y + 5;
-  const w = line.type === "row" ? actualSize : cellSize;
-  const h = line.type === "row" ? cellSize : actualSize;
-
-  const opacity = useDerivedValue(() => (1 - progress.value) * 0.7);
-
-  return (
-    <Rect x={x} y={y} width={w} height={h} opacity={opacity} color={line.color}>
-      <Blur blur={progress.value * 15} />
-    </Rect>
-  );
-};
-
-export const SkiaExplosionLayer = () => {
-  const { activeExplosions, activeLines, boardLayout } = useGameStore();
+export const CustomSplashScreen = ({ onFinish }: CustomSplashScreenProps) => {
   const progress = useSharedValue(0);
+  const opacity = useSharedValue(1);
+  const logoScale = useSharedValue(0.8);
 
   useEffect(() => {
-    if (activeExplosions.length > 0 || activeLines.length > 0) {
-      progress.value = 0;
-      progress.value = withTiming(1, {
-        duration: 400,
-        easing: Easing.out(Easing.quad),
-      });
-    }
-  }, [activeExplosions, activeLines]);
+    // 1. Initialize Ads and other background tasks
+    initializeAds();
 
-  if (!boardLayout) return null;
+    // 2. Start Animations
+    logoScale.value = withTiming(1, {
+      duration: 800,
+      easing: Easing.out(Easing.back(1.5)),
+    });
+
+    progress.value = withTiming(
+      1,
+      { duration: 2500, easing: Easing.inOut(Easing.quad) },
+      (finished) => {
+        if (finished) {
+          // Fade out everything
+          opacity.value = withTiming(0, { duration: 500 }, (faded) => {
+            if (faded) {
+              runOnJS(onFinish)();
+            }
+          });
+        }
+      },
+    );
+  }, []);
+
+  const animatedContainerStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+  }));
+
+  const animatedLogoStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: logoScale.value }],
+  }));
+
+  const animatedProgressStyle = useAnimatedStyle(() => ({
+    width: progress.value * BAR_WIDTH,
+  }));
 
   return (
-    <Canvas style={StyleSheet.absoluteFill} pointerEvents="none">
-      {/* 1. Satır Işınları */}
-      {activeLines.map((line) => (
-        <LineBeam
-          key={line.id}
-          line={line}
-          layout={boardLayout}
-          progress={progress}
+    <Animated.View style={[styles.container, animatedContainerStyle]}>
+      <Animated.View style={animatedLogoStyle}>
+        <Image
+          source={require("@/assets/images/icon.png")}
+          style={styles.logo}
+          resizeMode="contain"
         />
-      ))}
+      </Animated.View>
 
-      {/* 2. Patlama Parçacıkları */}
-      {activeExplosions.map((exp) => (
-        <Group key={exp.id}>
-          {Array.from({ length: 10 }).map((_, i) => (
-            <Particle
-              key={`${exp.id}-${i}`}
-              angle={(i * Math.PI * 2) / 10 + Math.random()}
-              x={exp.x}
-              y={exp.y}
-              color={exp.color}
-              progress={progress}
-              speed={60 + Math.random() * 80}
-            />
-          ))}
-        </Group>
-      ))}
-    </Canvas>
+      <Text style={styles.title}>GRID GRIN</Text>
+
+      <View style={styles.progressContainer}>
+        <Animated.View style={[styles.progressBar, animatedProgressStyle]} />
+      </View>
+
+      <Text style={styles.loadingText}>Yükleniyor...</Text>
+    </Animated.View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#121214", // Dark theme background
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 9999,
+  },
+  logo: {
+    width: LOGO_SIZE,
+    height: LOGO_SIZE,
+    marginBottom: 20,
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: "900",
+    color: "#fff",
+    marginBottom: 50,
+    letterSpacing: 2,
+  },
+  progressContainer: {
+    width: BAR_WIDTH,
+    height: BAR_HEIGHT,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderRadius: BAR_HEIGHT / 2,
+    overflow: "hidden",
+    marginBottom: 15,
+  },
+  progressBar: {
+    height: "100%",
+    backgroundColor: "#00E0FF", // Neon Cyan
+    borderRadius: BAR_HEIGHT / 2,
+  },
+  loadingText: {
+    color: "#666",
+    fontSize: 12,
+    letterSpacing: 1,
+    textTransform: "uppercase",
+  },
+});
+</file>
+
+<file path="src/components/StreakOverlay.tsx">
+import { Image } from "expo-image";
+import React, { useEffect, useState } from "react";
+import { StyleSheet, View } from "react-native";
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
+import { useGameStore } from "../store/useGameStore";
+
+// Streak görselleri
+const STREAK_IMAGES = {
+  good: require("../../assets/images/streak/good.png"),
+  sweet: require("../../assets/images/streak/sweet.png"),
+  perfect: require("../../assets/images/streak/perfect.png"),
+  perfect_streak: require("../../assets/images/streak/perfect-streak.png"),
+};
+
+export const StreakOverlay = () => {
+  const streak = useGameStore((state) => state.streak);
+  const milestoneEvent = useGameStore((state) => state.milestoneEvent);
+  const clearMilestone = useGameStore((state) => state.clearMilestone);
+  const [activeImage, setActiveImage] = useState<any>(null);
+
+  const scale = useSharedValue(0);
+  const translateY = useSharedValue(50);
+  const opacity = useSharedValue(0);
+
+  useEffect(() => {
+    let img = null;
+
+    // 1. Milestone Öncelikli (Rekor)
+    if (milestoneEvent) {
+      if (milestoneEvent === "sweet") img = STREAK_IMAGES.sweet;
+      else if (milestoneEvent === "good") img = STREAK_IMAGES.good;
+      else if (milestoneEvent === "perfect") img = STREAK_IMAGES.perfect;
+
+      clearMilestone(); // Event'i resetle
+    }
+    // 2. Normal Streak
+    else if (streak >= 2) {
+      if (streak >= 10) img = STREAK_IMAGES.perfect_streak;
+      else if (streak >= 7) img = STREAK_IMAGES.perfect;
+      else if (streak >= 4) img = STREAK_IMAGES.sweet;
+      else if (streak >= 2) img = STREAK_IMAGES.good;
+    }
+
+    if (img) {
+      setActiveImage(img);
+      scale.value = 0;
+      translateY.value = 50;
+      opacity.value = 1;
+
+      scale.value = withSpring(1);
+      translateY.value = withSpring(0);
+
+      // 1.5 saniye sonra kaybol
+      setTimeout(() => {
+        opacity.value = withTiming(0, { duration: 300 }, () => {
+          runOnJS(setActiveImage)(null);
+        });
+      }, 1500);
+    }
+  }, [
+    streak,
+    milestoneEvent,
+    activeImage,
+    clearMilestone,
+    opacity,
+    scale,
+    translateY,
+  ]);
+
+  const style = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }, { translateY: translateY.value }],
+    opacity: opacity.value,
+  }));
+
+  if (!activeImage) return null;
+
+  return (
+    <View style={styles.container} pointerEvents="none">
+      <Animated.View style={style}>
+        <Image source={activeImage} style={styles.image} contentFit="contain" />
+      </Animated.View>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 100,
+    marginTop: -100, // Board'un biraz üzerinde olsun
+  },
+  image: {
+    width: 300,
+    height: 150,
+  },
+});
+</file>
+
+<file path="src/store/adStore.ts">
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { create } from "zustand";
+
+// ==========================================
+// AD CONFIGURATION
+// ==========================================
+
+export const AD_RULES = {
+  // Interstitial rules
+  interstitial: {
+    excludedLevels: [], // No exclusions for infinite mode
+    minTimeBetweenAds: 120000, // 2 minutes between interstitial ads
+    showOnLevelEntry: false,
+  },
+
+  // Rewarded rules
+  rewarded: {
+    enabled: true, // Rewarded ads for hints
+  },
+
+  // Banner rules
+  banner: {
+    showInGame: true, // Show banner at top of game screen
+    showInChapters: false, // Don't show banner in chapters (use native ads instead)
+  },
+
+  // Native ads rules
+  native: {
+    showInChapters: true, // Show native ad in chapters screen
+    showEveryNChapters: 4, // Show ad after every 4 chapters
+  },
+};
+
+// ==========================================
+// AD STATE INTERFACE
+// ==========================================
+
+interface AdState {
+  // Last shown timestamps
+  lastInterstitialShown: number;
+  lastRewardedShown: number;
+
+  // Ad readiness
+  isInterstitialReady: boolean;
+  isRewardedReady: boolean;
+  isBannerReady: boolean;
+
+  // Statistics
+  totalInterstitialsShown: number;
+  totalRewardedsShown: number;
+  totalBannersShown: number;
+
+  // Global ad state
+  isAdShowing: boolean; // True when a full-screen ad (Interstitial/Rewarded) is open
+}
+
+interface AdActions {
+  // Interstitial
+  canShowInterstitial: (chapterId: number, levelId: number) => boolean;
+  markInterstitialShown: () => void;
+  setInterstitialReady: (ready: boolean) => void;
+
+  // Rewarded
+  canShowRewarded: () => boolean;
+  markRewardedShown: () => void;
+  setRewardedReady: (ready: boolean) => void;
+
+  // Banner
+  canShowBanner: () => boolean;
+  setBannerReady: (ready: boolean) => void;
+
+  // Native
+  shouldShowNativeAdAtIndex: (index: number) => boolean;
+
+  // Persistence
+  loadAdState: () => Promise<void>;
+  saveAdState: () => Promise<void>;
+
+  // Global state
+  setAdShowing: (showing: boolean) => void;
+}
+
+interface AdStore extends AdState {
+  actions: AdActions;
+}
+
+// ==========================================
+// STORAGE KEY
+// ==========================================
+
+const AD_STATE_KEY = "@puzzle_game_ad_state";
+
+// ==========================================
+// INITIAL STATE
+// ==========================================
+
+const initialState: AdState = {
+  lastInterstitialShown: 0,
+  lastRewardedShown: 0,
+  isInterstitialReady: false,
+  isRewardedReady: false,
+  isBannerReady: false,
+  totalInterstitialsShown: 0,
+  totalRewardedsShown: 0,
+  totalBannersShown: 0,
+  isAdShowing: false,
+};
+
+// ==========================================
+// AD STORE
+// ==========================================
+
+export const useAdStore = create<AdStore>((set, get) => ({
+  ...initialState,
+
+  actions: {
+    // ==========================================
+    // INTERSTITIAL ADS
+    // ==========================================
+
+    canShowInterstitial: (chapterId: number, levelId: number) => {
+      const state = get();
+
+      // Check if this level is excluded
+      const isExcluded = AD_RULES.interstitial.excludedLevels.some(
+        (excluded) =>
+          excluded.chapterId === chapterId && excluded.levelId === levelId,
+      );
+
+      if (isExcluded) {
+        console.log(`📺 Level ${chapterId}-${levelId} is excluded from ads`);
+        return false;
+      }
+
+      // Check if enough time has passed
+      const now = Date.now();
+      const timeSinceLastAd = now - state.lastInterstitialShown;
+      if (timeSinceLastAd < AD_RULES.interstitial.minTimeBetweenAds) {
+        const remainingSeconds = Math.ceil(
+          (AD_RULES.interstitial.minTimeBetweenAds - timeSinceLastAd) / 1000,
+        );
+        console.log(`📺 Too soon for ad, wait ${remainingSeconds}s`);
+        return false;
+      }
+
+      // Check if ad is ready
+      if (!state.isInterstitialReady) {
+        console.log("📺 Interstitial not ready");
+        return false;
+      }
+
+      return true;
+    },
+
+    markInterstitialShown: () => {
+      const now = Date.now();
+      set((state) => ({
+        lastInterstitialShown: now,
+        totalInterstitialsShown: state.totalInterstitialsShown + 1,
+        isInterstitialReady: false, // Will be reloaded
+      }));
+      get().actions.saveAdState();
+    },
+
+    setInterstitialReady: (ready: boolean) => {
+      set({ isInterstitialReady: ready });
+    },
+
+    // ==========================================
+    // REWARDED ADS
+    // ==========================================
+
+    canShowRewarded: () => {
+      const state = get();
+
+      if (!AD_RULES.rewarded.enabled) {
+        console.log("🎁 Rewarded ads disabled");
+        return false;
+      }
+
+      if (!state.isRewardedReady) {
+        console.log("🎁 Rewarded not ready");
+        return false;
+      }
+
+      return true;
+    },
+
+    markRewardedShown: () => {
+      const now = Date.now();
+      set((state) => ({
+        lastRewardedShown: now,
+        totalRewardedsShown: state.totalRewardedsShown + 1,
+        isRewardedReady: false, // Will be reloaded
+      }));
+      get().actions.saveAdState();
+    },
+
+    setRewardedReady: (ready: boolean) => {
+      set({ isRewardedReady: ready });
+    },
+
+    // ==========================================
+    // BANNER ADS
+    // ==========================================
+
+    canShowBanner: () => {
+      const state = get();
+      return AD_RULES.banner.showInGame && state.isBannerReady;
+    },
+
+    setBannerReady: (ready: boolean) => {
+      set({ isBannerReady: ready });
+    },
+
+    // ==========================================
+    // NATIVE ADS
+    // ==========================================
+
+    shouldShowNativeAdAtIndex: (index: number) => {
+      if (!AD_RULES.native.showInChapters) return false;
+
+      // Show ad every N chapters (e.g., after chapter 4, 8, 12, etc.)
+      // Index is 0-based, so we add 1
+      const chapterNumber = index + 1;
+      return chapterNumber % AD_RULES.native.showEveryNChapters === 0;
+    },
+
+    // ==========================================
+    // PERSISTENCE
+    // ==========================================
+
+    loadAdState: async () => {
+      try {
+        const stored = await AsyncStorage.getItem(AD_STATE_KEY);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          set({
+            lastInterstitialShown: parsed.lastInterstitialShown || 0,
+            lastRewardedShown: parsed.lastRewardedShown || 0,
+            totalInterstitialsShown: parsed.totalInterstitialsShown || 0,
+            totalRewardedsShown: parsed.totalRewardedsShown || 0,
+            totalBannersShown: parsed.totalBannersShown || 0,
+          });
+          console.log("📺 Ad state loaded from storage");
+        }
+      } catch (error) {
+        console.error("📺 Failed to load ad state:", error);
+      }
+    },
+
+    saveAdState: async () => {
+      try {
+        const state = get();
+        const toSave = {
+          lastInterstitialShown: state.lastInterstitialShown,
+          lastRewardedShown: state.lastRewardedShown,
+          totalInterstitialsShown: state.totalInterstitialsShown,
+          totalRewardedsShown: state.totalRewardedsShown,
+          totalBannersShown: state.totalBannersShown,
+        };
+        await AsyncStorage.setItem(AD_STATE_KEY, JSON.stringify(toSave));
+      } catch (error) {
+        console.error("📺 Failed to save ad state:", error);
+      }
+    },
+
+    setAdShowing: (showing: boolean) => {
+      set({ isAdShowing: showing });
+    },
+  },
+}));
+
+// ==========================================
+// HOOKS
+// ==========================================
+
+export const useAdActions = () => useAdStore((state) => state.actions);
+export const useIsInterstitialReady = () =>
+  useAdStore((state) => state.isInterstitialReady);
+export const useIsRewardedReady = () =>
+  useAdStore((state) => state.isRewardedReady);
+export const useIsBannerReady = () =>
+  useAdStore((state) => state.isBannerReady);
+export const useIsAdShowing = () => useAdStore((state) => state.isAdShowing);
 </file>
 
 <file path="src/store/useGameStore.ts">
 // src/store/useGameStore.ts
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { create } from "zustand";
-import { BOARD_SIZE, SHAPES } from "../utils/constants";
+import { BOARD_SIZE, SCORING, SHAPES } from "../utils/constants";
 import { processMove } from "../utils/gameLogic";
-
-interface ExplosionData {
-  id: string;
-  x: number;
-  y: number;
-  color: string;
-}
-
-interface LineClear {
-  id: string;
-  type: "row" | "col";
-  index: number;
-  color: string;
-}
 
 interface GameState {
   board: (string | null)[][];
   score: number;
-  streak: number; // Arka arkaya kaç hamledir parça siliyoruz?
-  lastMoveResult: any | null; // UI'daki animasyonlar bunu dinleyecek
+  streak: number;
+  lastMoveResult: any | null;
+  lastSavedScore: number | null; // Oturum takibi için
   availablePieces: { id: string; shape: number[][]; color: string }[];
+  boardLayout: { x: number; y: number; size: number } | null;
+  setBoardLayout: (layout: { x: number; y: number; size: number }) => void;
+  bestScore: number;
+  leaderboard: number[]; // Top 3 Scores
+  milestoneEvent: "sweet" | "good" | "perfect" | null; // For UI feedback
+  isGameOver: boolean;
+  hasSavedGame: boolean;
+  loadLeaderboard: () => Promise<void>;
+
+  // Persistence
+  saveGame: () => Promise<void>;
+  loadGame: () => Promise<void>;
+
+  resetGame: () => void;
+  checkGameOver: () => void;
+  continueWithNewPieces: () => void;
+
   refreshPieces: (checkPlayability?: boolean) => void;
   removePiece: (id: string) => void;
-  activeLines: LineClear[];
   onDrop: (
     id: string,
     shape: number[][],
@@ -1067,28 +2449,8 @@ interface GameState {
     color: string,
   ) => void;
   handleMove: (piece: number[][], r: number, c: number, color: string) => void;
-  boardLayout: { x: number; y: number; size: number } | null;
-  setBoardLayout: (layout: { x: number; y: number; size: number }) => void;
   canPlacePiece: (piece: number[][], row: number, col: number) => boolean;
-  preview: {
-    row: number;
-    col: number;
-    shape: number[][];
-    color: string;
-  } | null;
-  updatePreview: (preview: GameState["preview"]) => void;
-  bestScore: number;
-  isGameOver: boolean;
-  resetGame: () => void;
-
-  checkGameOver: () => void;
-  continueWithNewPieces: () => void;
-  activeExplosions: ExplosionData[];
-  triggerExplosions: (
-    cells: { row: number; col: number; color: string }[],
-    clearedRows: number[], // EKLENDİ
-    clearedCols: number[], // EKLENDİ
-  ) => void;
+  clearMilestone: () => void;
 }
 
 export const useGameStore = create<GameState>((set, get) => ({
@@ -1098,115 +2460,178 @@ export const useGameStore = create<GameState>((set, get) => ({
   score: 0,
   streak: 0,
   lastMoveResult: null,
+  lastSavedScore: null,
   availablePieces: [],
-  preview: null,
-  updatePreview: (preview) => set({ preview }),
   boardLayout: null,
   setBoardLayout: (layout) => set({ boardLayout: layout }),
   bestScore: 0,
+  leaderboard: [0, 0, 0],
+  milestoneEvent: null,
   isGameOver: false,
-  activeExplosions: [],
-  activeLines: [],
-  triggerExplosions: (cells, clearedRows, clearedCols) => {
-    const { boardLayout } = get();
-    if (!boardLayout) return;
+  hasSavedGame: false,
 
-    const actualBoardSize = boardLayout.size - 10;
-    const cellSize = actualBoardSize / BOARD_SIZE;
+  saveGame: async () => {
+    const { board, score, streak, availablePieces, isGameOver } = get();
+    // Don't save if game over
+    if (isGameOver) {
+      await AsyncStorage.removeItem("gameState");
+      set({ hasSavedGame: false });
+      return;
+    }
 
-    const newExplosions = cells.map((cell) => ({
-      id: Math.random().toString(),
-      x: boardLayout.x + 5 + cell.col * cellSize + cellSize / 2,
-      y: boardLayout.y + 5 + cell.row * cellSize + cellSize / 2,
-      color: cell.color,
-    }));
-
-    const newLines = [
-      ...clearedRows.map((r) => ({
-        id: Math.random().toString(),
-        type: "row" as const,
-        index: r,
-        color: cells[0]?.color || "#fff",
-      })),
-      ...clearedCols.map((c) => ({
-        id: Math.random().toString(),
-        type: "col" as const,
-        index: c,
-        color: cells[0]?.color || "#fff",
-      })),
-    ];
-
-    set({ activeExplosions: newExplosions, activeLines: newLines });
-    setTimeout(() => set({ activeExplosions: [], activeLines: [] }), 450);
+    const stateToSave = {
+      board,
+      score,
+      streak,
+      availablePieces,
+    };
+    try {
+      await AsyncStorage.setItem("gameState", JSON.stringify(stateToSave));
+      set({ hasSavedGame: true });
+    } catch (e) {
+      console.error("Failed to save game", e);
+    }
   },
+
+  loadGame: async () => {
+    try {
+      const stored = await AsyncStorage.getItem("gameState");
+      const savedLeaderboard = await AsyncStorage.getItem("leaderboard");
+
+      if (savedLeaderboard) {
+        set({ leaderboard: JSON.parse(savedLeaderboard) });
+      }
+
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        set({
+          board: parsed.board,
+          score: parsed.score,
+          streak: parsed.streak,
+          availablePieces: parsed.availablePieces,
+          hasSavedGame: true,
+          isGameOver: false,
+        });
+      } else {
+        set({ hasSavedGame: false });
+      }
+    } catch (e) {
+      console.error("Failed to load game", e);
+    }
+  },
+
+  loadLeaderboard: async () => {
+    try {
+      const stored = await AsyncStorage.getItem("leaderboard");
+      if (stored) {
+        set({ leaderboard: JSON.parse(stored) });
+      }
+    } catch (e) {
+      console.error("Failed to load leaderboard", e);
+    }
+  },
+
   handleMove: (piece, r, c, color) => {
-    const { board, streak, score, bestScore, triggerExplosions } = get();
+    const { board, streak, score: currentScore, leaderboard } = get();
+    // 1. Hamleyi işle (Puan hesabı hariç)
     const result = processMove(board, piece, r, c, color, streak);
 
-    const hasClears =
-      result.clearedRows.length > 0 || result.clearedCols.length > 0;
+    const clearedCount = result.clearedRows.length + result.clearedCols.length;
+    let moveScore = 0;
+    let newStreak = 0;
 
-    if (hasClears) {
-      // Patlayacak hücreleri tespit et
-      const cellsToExplode: { row: number; col: number; color: string }[] = [];
+    // 2. Puanlama Mantığı (User Rules)
+    if (clearedCount > 0) {
+      // Temel Puan
+      if (clearedCount === 1) {
+        moveScore = SCORING.SINGLE_LINE;
+      } else {
+        // (Sıra x 100) + (Sıra x 25)
+        moveScore =
+          clearedCount * SCORING.MULTI_LINE_BASE +
+          clearedCount * SCORING.MULTI_LINE_BONUS;
+      }
 
-      // Satırlardaki hücreler
-      result.clearedRows.forEach((rowIdx) => {
-        result.placedBoard[rowIdx].forEach((cellCol, colIdx) => {
-          if (cellCol)
-            cellsToExplode.push({ row: rowIdx, col: colIdx, color: cellCol });
-        });
-      });
+      // Streak Arttır
+      newStreak = streak + 1;
 
-      // Sütunlardaki hücreler (aynı hücreleri tekrar eklememek için kontrol edilebilir)
-      result.clearedCols.forEach((colIdx) => {
-        for (let rowIdx = 0; rowIdx < BOARD_SIZE; rowIdx++) {
-          const cellCol = result.placedBoard[rowIdx][colIdx];
-          if (cellCol)
-            cellsToExplode.push({ row: rowIdx, col: colIdx, color: cellCol });
-        }
-      });
+      // Streak Bonusu (Streak >= 2 ise)
+      if (newStreak >= 2) {
+        moveScore += Math.floor(
+          moveScore * SCORING.STREAK_MULTIPLIER * newStreak,
+        );
+      }
+    } else {
+      // Hiçbir şey silinmediyse streak sıfırlanır
+      newStreak = 0;
+    }
 
-      // Patlamayı Skia katmanına gönder
-      triggerExplosions(cellsToExplode, result.clearedRows, result.clearedCols);
-      set({
-        board: result.placedBoard,
-        score: score + result.score,
-        streak: streak + 1,
-      });
+    const newTotalScore = currentScore + moveScore;
 
+    let milestone: GameState["milestoneEvent"] = null;
+    const [first, second, third] = leaderboard;
+
+    // Skor değişimi sınırları geçti mi?
+    if (currentScore < third && newTotalScore >= third && third > 0)
+      milestone = "sweet";
+    else if (currentScore < second && newTotalScore >= second && second > 0)
+      milestone = "good";
+    else if (currentScore < first && newTotalScore >= first && first > 0)
+      milestone = "perfect";
+
+    set({
+      board: result.placedBoard,
+      score: newTotalScore,
+      streak: newStreak,
+      milestoneEvent: milestone,
+    });
+
+    if (clearedCount > 0) {
       setTimeout(() => {
         set({ board: result.newBoard });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        // Board temizlendikten sonra Game Over kontrolü yap
+        get().checkGameOver();
       }, 50);
     } else {
-      set({ board: result.newBoard, score: score + result.score, streak: 0 });
+      set({ board: result.newBoard });
       Haptics.selectionAsync();
+      // Hemen Game Over kontrolü yap
+      get().checkGameOver();
     }
-    get().checkGameOver();
   },
+
+  clearMilestone: () => set({ milestoneEvent: null }),
+
   refreshPieces: (checkPlayability = false) => {
-    const colors = ["#FF5733", "#33FF57", "#3357FF", "#F333FF", "#FF33A1"];
+    const colors = [
+      "#FF5733", // Red-Orange
+      "#33FF57", // Green
+      "#3357FF", // Blue
+      "#F333FF", // Pink/Purple
+      "#FFC300", // Gold/Yellow
+      "#00F5FF", // Cyan
+      "#FF33A1", // Hot Pink
+    ];
     const shapesKeys = Object.keys(SHAPES) as (keyof typeof SHAPES)[];
 
-    // Yardımcı: Bir parçanın board'a herhangi bir yere sığıp sığmadığını kontrol et
     const doesPieceFit = (
       piece: number[][],
       currentBoard: (string | null)[][],
     ) => {
       const boardSize = currentBoard.length;
       for (let r = 0; r <= boardSize - piece.length; r++) {
+        // DİKKAT: Burada da aynı hata olmasın diye <= yaptık (zaten doğruydu ama emin olalım)
         for (let c = 0; c <= boardSize - piece[0].length; c++) {
-          // canPlacePiece store fonksiyonunu burada kullanamayız çünkü get().canPlacePiece board'u state'den alır.
-          // Yerel board kontrolü için basit bir iç mantık:
           let fits = true;
           for (let pr = 0; pr < piece.length; pr++) {
             for (let pc = 0; pc < piece[pr].length; pc++) {
-              if (piece[pr][pc] === 1) {
-                if (currentBoard[r + pr][c + pc] !== null) {
-                  fits = false;
-                  break;
-                }
+              if (
+                piece[pr][pc] === 1 &&
+                currentBoard[r + pr][c + pc] !== null
+              ) {
+                fits = false;
+                break;
               }
             }
             if (!fits) break;
@@ -1217,29 +2642,22 @@ export const useGameStore = create<GameState>((set, get) => ({
       return false;
     };
 
-    const newPieces = [1, 2, 3].map((i) => ({
+    const newPieces = [1, 2, 3].map(() => ({
       id: Math.random().toString(36),
       shape: SHAPES[shapesKeys[Math.floor(Math.random() * shapesKeys.length)]],
       color: colors[Math.floor(Math.random() * colors.length)],
     }));
 
-    // Eğer oynanabilirlik kontrolü isteniyorsa (örneğin Continue sonrası)
     if (checkPlayability) {
       const { board } = get();
-      // Üretilen parçalardan herhangi biri board'a sığıyor mu?
       const isAnyPlayable = newPieces.some((p) => doesPieceFit(p.shape, board));
-
-      // Hiçbiri sığmıyorsa, en az bir tane sığan parça (kurtarıcı) verelim
       if (!isAnyPlayable) {
-        // Basit bir 1x1 nokta veya çok küçük bir parça bulalım
-        const safePiece = {
+        // En güvenli parça ile değiştir
+        newPieces[0] = {
           id: Math.random().toString(36) + "_safe",
-          shape: SHAPES.DOT, // En güvenli parça
-          color: colors[0], // Rastgele de olabilir
+          shape: SHAPES.DOT,
+          color: colors[0],
         };
-
-        // İlk parçayı güvenli olanla değiştir
-        newPieces[0] = safePiece;
       }
     }
 
@@ -1249,18 +2667,14 @@ export const useGameStore = create<GameState>((set, get) => ({
   removePiece: (id) => {
     const nextPieces = get().availablePieces.filter((p) => p.id !== id);
     set({ availablePieces: nextPieces });
-
     if (nextPieces.length === 0) {
       get().refreshPieces();
     }
-
-    // Parçalar güncellendikten SONRA kontrol etmeliyiz
-    get().checkGameOver();
   },
+
   canPlacePiece: (piece, row, col) => {
     const { board } = get();
     const boardSize = board.length;
-
     for (let r = 0; r < piece.length; r++) {
       for (let c = 0; c < piece[r].length; c++) {
         if (piece[r][c] === 1) {
@@ -1279,24 +2693,28 @@ export const useGameStore = create<GameState>((set, get) => ({
     }
     return true;
   },
+
   onDrop: (id, shape, row, col, color) => {
     const { canPlacePiece, handleMove, removePiece } = get();
-    set({ preview: null }); // Önizlemeyi temizle
-
-    // Eğer yerleştirme kurallara uygunsa
     if (canPlacePiece(shape, row, col)) {
+      // ÖNCE parçayı elden çıkar
+      removePiece(id);
+      // SONRA hamleyi işle
       handleMove(shape, row, col, color);
-      removePiece(id); // Başarılıysa parçayı store'dan sil
     }
-    // NOT: Başarısızsa hiçbir şey yapmıyoruz.
-    // Parça silinmediği için Piece bileşeni kendini eski yerine çekecek.
   },
+
   checkGameOver: () => {
-    const { board, availablePieces, canPlacePiece } = get();
-    if (availablePieces.length === 0) return;
+    const { availablePieces, canPlacePiece, isGameOver } = get();
+    // Oyun zaten bitmişse tekrar bakma
+    if (isGameOver || availablePieces.length === 0) return;
 
     const canMove = availablePieces.some((piece) => {
+      // --- DÜZELTME BURADA YAPILDI ---
+      // Satır kontrolü
       for (let r = 0; r <= BOARD_SIZE - piece.shape.length; r++) {
+        // Sütun kontrolü: Eskiden < (küçüktür) idi, şimdi <= (küçük eşittir) yaptık.
+        // Bu sayede son sütunu da kontrol ediyor.
         for (let c = 0; c <= BOARD_SIZE - piece.shape[0].length; c++) {
           if (canPlacePiece(piece.shape, r, c)) return true;
         }
@@ -1304,7 +2722,47 @@ export const useGameStore = create<GameState>((set, get) => ({
       return false;
     });
 
-    if (!canMove) set({ isGameOver: true });
+    if (!canMove) {
+      const { score, leaderboard, lastSavedScore } = get();
+
+      let newLeaderboard = [...leaderboard];
+      let shouldUpdate = false;
+
+      // Eğer bu "Continue" sonrası bir Game Over ise:
+      if (lastSavedScore !== null) {
+        if (score > lastSavedScore) {
+          const indexToRemove = newLeaderboard.indexOf(lastSavedScore);
+          if (indexToRemove !== -1) {
+            newLeaderboard.splice(indexToRemove, 1);
+          }
+          newLeaderboard.push(score);
+          shouldUpdate = true;
+        }
+      } else {
+        // İlk Game Over
+        newLeaderboard.push(score);
+        shouldUpdate = true;
+      }
+
+      if (shouldUpdate) {
+        newLeaderboard.sort((a, b) => b - a);
+        newLeaderboard = newLeaderboard.slice(0, 3);
+
+        AsyncStorage.setItem("leaderboard", JSON.stringify(newLeaderboard));
+        set({
+          leaderboard: newLeaderboard,
+          bestScore: newLeaderboard[0],
+        });
+      }
+
+      const sessionBest =
+        lastSavedScore !== null ? Math.max(score, lastSavedScore) : score;
+
+      set({
+        isGameOver: true,
+        lastSavedScore: sessionBest,
+      });
+    }
   },
 
   resetGame: () => {
@@ -1316,15 +2774,21 @@ export const useGameStore = create<GameState>((set, get) => ({
       streak: 0,
       isGameOver: false,
       lastMoveResult: null,
-      preview: null,
+      milestoneEvent: null,
+      lastSavedScore: null,
     });
     get().refreshPieces();
   },
+
   continueWithNewPieces: () => {
-    // 1. isGameOver'ı anında kapat
-    set({ isGameOver: false });
-    // 2. Oynanabilir parçalar üret (refreshPieces(true) içeride 'safePiece' mantığı barındırıyor)
-    get().refreshPieces(true);
+    const { score } = get();
+    if (score >= 500) {
+      set({
+        isGameOver: false,
+        score: score - 500,
+      });
+      get().refreshPieces(true);
+    }
   },
 }));
 </file>
@@ -1343,71 +2807,151 @@ export interface GameCell {
 <file path="src/utils/constants.ts">
 // src/utils/constants.ts
 import { Dimensions } from "react-native";
-const { width } = Dimensions.get("window");
+const { width, height } = Dimensions.get("window");
 export const BOARD_SIZE = 9;
 
 export const SHAPES = {
-  // DOT: [[1]],
-  // SQUARE_2x2: [
-  //   [1, 1],
-  //   [1, 1],
-  // ],
+  DOT: [[1]],
+  SQUARE_2x2: [
+    [1, 1],
+    [1, 1],
+  ],
   SQUARE_3x3: [
     [1, 1, 1],
     [1, 1, 1],
     [1, 1, 1],
   ],
-  // LINE_3_H: [[1, 1, 1]],
-  // LINE_3_V: [[1], [1], [1]],
-  // L_SHAPE: [
-  //   [1, 0],
-  //   [1, 0],
-  //   [1, 1],
-  // ],
-  // L_SHAPE_2: [
-  //   [0, 1],
-  //   [0, 1],
-  //   [1, 1],
-  // ],
-  // Z_SHAPE: [
-  //   [1, 1, 0],
-  //   [0, 1, 1],
-  // ],
-  // Z_SHAPE_2: [
-  //   [0, 1, 1],
-  //   [1, 1, 0],
-  // ],
-  // T_SHAPE: [
-  //   [1, 1, 1],
-  //   [0, 1, 0],
-  // ],
-  // T_REVERSED: [
-  //   [0, 1, 0],
-  //   [1, 1, 1],
-  // ],
-  // T_LEFT: [
-  //   [1, 0],
-  //   [1, 1],
-  //   [1, 1],
-  // ],
-  // T_RIGHT: [
-  //   [0, 1],
-  //   [1, 1],
-  //   [0, 1],
-  // ],
+  LINE_3_H: [[1, 1, 1]],
+  LINE_3_V: [[1], [1], [1]],
+  L_SHAPE: [
+    [1, 0],
+    [1, 0],
+    [1, 1],
+  ],
+  L_SHAPE_2: [
+    [0, 1],
+    [0, 1],
+    [1, 1],
+  ],
+  Z_SHAPE: [
+    [1, 1, 0],
+    [0, 1, 1],
+  ],
+  Z_SHAPE_2: [
+    [0, 1, 1],
+    [1, 1, 0],
+  ],
+  T_SHAPE: [
+    [1, 1, 1],
+    [0, 1, 0],
+  ],
+  T_REVERSED: [
+    [0, 1, 0],
+    [1, 1, 1],
+  ],
+  T_LEFT: [
+    [1, 0],
+    [1, 1],
+    [1, 0],
+  ],
+  T_RIGHT: [
+    [0, 1],
+    [1, 1],
+    [0, 1],
+  ],
+  R_LEFT: [
+    [1, 0],
+    [1, 1],
+    [1, 1],
+  ],
+  R_RIGHT: [
+    [0, 1],
+    [1, 1],
+    [0, 1],
+  ],
+};
+
+export const THEME = {
+  // User Palette
+  // 30364F - Main Dark Blue
+  // ACBAC4 - Muted Blue/Grey
+  // E1D9BC - Beige/Sand
+  // F0F0DB - Lightest Beige
+
+  BACKGROUND: "#25343F", // Main Background
+  SURFACE: "#23293B", // Slightly darker for clear contrast or "#3B4461" for lighter. Let's go darker for depth.
+  SURFACE_LIGHT: "#434C68", // Lighter surface for interaction
+
+  TEXT_PRIMARY: "#F0F0DB", // Lightest
+  TEXT_SECONDARY: "#FF5FCF", // Beige
+  TEXT_MUTED: "#ACBAC4", // Greyish
+
+  ACCENT: "#E1D9BC", // Using the beige as accent for now, or maybe a generated vibrant one?
+  // Let's keep Vibrant colors for game pieces separately?
+
+  // Specific UI
+  BUTTON_BG: "#434C68",
+  BUTTON_TEXT: "#FFFFFF",
+  BUTTON_PRIMARY: "#FF5FCF",
+  BUTTON_SECONDARY: "#ACBAC4",
 };
 
 export const SCORING = {
-  BASE_CELL: 10, // Yerleştirilen her bir kare için
-  LINE_CLEAR: 100, // Silinen her bir satır/sütun için
-  CROSS_BONUS: 2.5, // Hem yatay hem dikey aynı anda silinirse çarpan
-  MULTI_LINE_EXP: 1.5, // Aynı anda birden fazla satır silinirse (n^1.5 gibi)
+  BASE_CELL: 0, // Hücre başına puan yok (Kullanıcı "sadece yok olduğunda" dedi)
+  SINGLE_LINE: 100,
+  MULTI_LINE_BASE: 100,
+  MULTI_LINE_BONUS: 25,
+  STREAK_MULTIPLIER: 0.15,
 };
 
 export const CELL_MARGIN = 2; // Hücreler arası boşluk
-// Toplam genişlikten marjinleri çıkarıp board boyutuna bölüyoruz
-export const CELL_SIZE = (width - 40) / BOARD_SIZE;
+
+// Board Calculation
+// We use the smaller of:
+// 1. Width-based (Screen width - padding)
+// 2. Height-based (55% of Screen height - padding) to ensure it fits vertically with ads/pieces
+
+// Simplified robust version:
+const sizeByWidth = (width - 40) / BOARD_SIZE;
+const sizeByHeight = (height * 0.55) / BOARD_SIZE;
+
+export const CELL_SIZE = Math.min(sizeByWidth, sizeByHeight);
+
 export const CELL_BORDER_RADIUS = 4;
+
+// Test Ad IDs (for development)
+const TEST_AD_CONFIG = {
+  interstitial: {
+    android: "ca-app-pub-3940256099942544/1033173712",
+    ios: "ca-app-pub-3940256099942544/4411468910",
+  },
+  banner: {
+    android: "ca-app-pub-3940256099942544/6300978111",
+    ios: "ca-app-pub-3940256099942544/2934735716",
+  },
+  native: {
+    android: "ca-app-pub-3940256099942544/2247696110",
+    ios: "ca-app-pub-3940256099942544/3986624511",
+  },
+};
+
+// Production Ad IDs (for release builds)
+const PROD_AD_CONFIG = {
+  interstitial: {
+    android: "ca-app-pub-5502183878891798/6177250595",
+    ios: "ca-app-pub-5502183878891798/3358741489",
+  },
+  banner: {
+    android: "ca-app-pub-5502183878891798/3247060847",
+    ios: "ca-app-pub-5502183878891798/4671823158",
+  },
+  native: {
+    android: "ca-app-pub-5502183878891798/8939145302",
+    ios: "ca-app-pub-5502183878891798/6264880506",
+  },
+};
+
+export const AD_CONFIG = __DEV__ ? TEST_AD_CONFIG : PROD_AD_CONFIG;
 </file>
 
 <file path="src/utils/gameLogic.ts">
@@ -1558,6 +3102,10 @@ app-example
 # generated native folders
 /ios
 /android
+
+*.ipa
+*.apk
+*.aab
 </file>
 
 <file path="app.json">
@@ -1572,36 +3120,55 @@ app-example
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
+      "icon": {
+        "light": "./assets/images/icon.png",
+        "dark": "./assets/images/ios-dark.png",
+        "tinted": "./assets/images/ios-tinted.png"
+      },
       "buildNumber": "1",
       "supportsTablet": true,
-      "bundleIdentifier": "com.eoist.gridgrin"
+      "bundleIdentifier": "com.eoist.gridgrin",
+      "infoPlist": {
+        "NSUserTrackingUsageDescription": "Bu izin, size ilgi alanlarınıza uygun reklamlar göstermek için kullanılacaktır.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "entitlements": {
+        "com.apple.developer.networking.wifi-info": true,
+        "com.apple.developer.game-center": true
+      }
     },
     "android": {
       "versionCode": 1,
       "package": "com.eoist.gridgrin",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "foregroundImage": "./assets/images/adaptive-icon.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/icon.png"
     },
     "plugins": [
       "expo-router",
       [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-5502183878891798~5873224185",
+          "iosAppId": "ca-app-pub-5502183878891798~7297986491"
+        }
+      ],
+      [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/splash-icon-light.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff",
           "dark": {
+            "image": "./assets/images/splash-icon-dark.png",
             "backgroundColor": "#000000"
           }
         }
@@ -1610,7 +3177,8 @@ app-example
         "expo-build-properties",
         {
           "ios": {
-            "useFrameworks": "static"
+            "useFrameworks": "static",
+            "deploymentTarget": "15.4"
           },
           "android": {
             "compileSdkVersion": 35,
@@ -1620,6 +3188,12 @@ app-example
             "enableShrinkResourcesInReleaseBuilds": true,
             "enableR8InReleaseBuilds": true
           }
+        }
+      ],
+      [
+        "expo-tracking-transparency",
+        {
+          "userTrackingPermission": "Bu izin, size ilgi alanlarınıza uygun reklamlar göstermek için kullanılacaktır."
         }
       ]
     ],
@@ -1638,11 +3212,19 @@ app-example
 </file>
 
 <file path="app/_layout.tsx">
+import { CustomSplashScreen } from "@/src/components/Splash/CustomSplashScreen";
 import { Stack } from "expo-router";
+import { useState } from "react";
 import { StatusBar } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 export default function RootLayout() {
+  const [isSplashFinished, setSplashFinished] = useState(false);
+
+  if (!isSplashFinished) {
+    return <CustomSplashScreen onFinish={() => setSplashFinished(true)} />;
+  }
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <StatusBar barStyle="light-content" />
@@ -1652,17 +3234,201 @@ export default function RootLayout() {
 }
 </file>
 
-<file path="eslint.config.js">
-// https://docs.expo.dev/guides/using-eslint/
-const { defineConfig } = require('eslint/config');
-const expoConfig = require('eslint-config-expo/flat');
+<file path="app/index.tsx">
+import { useGameStore } from "@/src/store/useGameStore";
+import { THEME } from "@/src/utils/constants";
+import { useRouter } from "expo-router";
+import { requestTrackingPermissionsAsync } from "expo-tracking-transparency";
+import React, { useEffect } from "react";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import Animated, { FadeInDown } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-module.exports = defineConfig([
-  expoConfig,
-  {
-    ignores: ['dist/*'],
+export default function MainMenu() {
+  const { top, bottom } = useSafeAreaInsets();
+  const router = useRouter();
+  const { loadGame, hasSavedGame, resetGame, score, leaderboard } =
+    useGameStore();
+
+  useEffect(() => {
+    (async () => {
+      const { status } = await requestTrackingPermissionsAsync();
+      if (status === "granted") {
+        console.log("Yay! I have user permission to track data");
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    loadGame(); // Check for saved game on mount
+  }, []);
+
+  const handleNewGame = () => {
+    resetGame();
+    router.replace("/game");
+  };
+
+  const handleContinue = () => {
+    router.replace("/game");
+  };
+
+  const [best, second, third] = leaderboard;
+
+  return (
+    <View
+      style={[
+        styles.container,
+        { paddingTop: top + 40, paddingBottom: bottom + 40 },
+      ]}
+    >
+      <Animated.Text
+        entering={FadeInDown.delay(200).springify()}
+        style={styles.title}
+      >
+        GRID GRIN
+      </Animated.Text>
+
+      {/* Leaderboard Section */}
+      <Animated.View
+        entering={FadeInDown.delay(300)}
+        style={styles.lbContainer}
+      >
+        <Text style={styles.bestLabel}>EN İYİ SKORLAR</Text>
+        <Text style={styles.bestScore}>{best}</Text>
+
+        {second > 0 && <Text style={styles.secondScore}>{second}</Text>}
+
+        {third > 0 && <Text style={styles.thirdScore}>{third}</Text>}
+      </Animated.View>
+
+      <Animated.View
+        entering={FadeInDown.delay(500).springify()}
+        style={styles.menuContainer}
+      >
+        {hasSavedGame && (
+          <TouchableOpacity
+            style={[styles.button, styles.continueButton]}
+            onPress={handleContinue}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.buttonText}>DEVAM ET</Text>
+            <Text style={styles.scoreText}>{score} Puan</Text>
+          </TouchableOpacity>
+        )}
+
+        <TouchableOpacity
+          style={[styles.button, styles.newGameButton]}
+          onPress={handleNewGame}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.buttonText, styles.newGameText]}>BAŞLA</Text>
+        </TouchableOpacity>
+      </Animated.View>
+
+      <Animated.Text entering={FadeInDown.delay(700)} style={styles.version}>
+        v1.0.0
+      </Animated.Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: THEME.BACKGROUND,
+    alignItems: "center",
+    justifyContent: "space-between",
   },
-]);
+  title: {
+    fontSize: 64,
+    fontWeight: "900",
+    color: THEME.TEXT_PRIMARY,
+    letterSpacing: 4,
+    textAlign: "center",
+    textShadowColor: "rgba(0,0,0,0.2)",
+    textShadowOffset: { width: 0, height: 4 },
+    textShadowRadius: 10,
+  },
+  lbContainer: {
+    alignItems: "center",
+    marginBottom: 20,
+    gap: 0, // Dikey boşlukları manuel kontrol edeceğiz veya gap verebiliriz
+    minHeight: 120, // Sabit bir alan kaplasın ki UI zıplamasın
+    justifyContent: "center",
+  },
+  bestLabel: {
+    color: THEME.TEXT_SECONDARY,
+    fontSize: 14,
+    fontWeight: "bold",
+    letterSpacing: 2,
+    marginBottom: 8,
+  },
+  bestScore: {
+    color: THEME.TEXT_PRIMARY,
+    fontSize: 56, // Biraz daha büyüttüm
+    fontWeight: "900",
+    textShadowColor: "rgba(0,0,0,0.2)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+    lineHeight: 64,
+  },
+  secondScore: {
+    color: THEME.TEXT_PRIMARY, // Biraz daha soluk olabilir ama primary kalsın
+    fontSize: 32,
+    fontWeight: "800",
+    opacity: 0.8,
+    marginTop: 4,
+  },
+  thirdScore: {
+    color: THEME.TEXT_PRIMARY,
+    fontSize: 24,
+    fontWeight: "700",
+    opacity: 0.6,
+    marginTop: 2,
+  },
+  menuContainer: {
+    width: "100%",
+    paddingHorizontal: 40,
+    gap: 20,
+    alignItems: "center",
+  },
+  button: {
+    width: "100%",
+    paddingVertical: 24,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 0, // No shadow
+    shadowOpacity: 0, // No shadow
+  },
+  continueButton: {
+    backgroundColor: THEME.SURFACE_LIGHT,
+    borderWidth: 1,
+    borderColor: THEME.TEXT_SECONDARY,
+  },
+  newGameButton: {
+    backgroundColor: THEME.BUTTON_PRIMARY,
+  },
+  buttonText: {
+    fontSize: 24,
+    fontWeight: "900",
+    color: THEME.BUTTON_TEXT,
+    letterSpacing: 1,
+  },
+  newGameText: {
+    color: THEME.BUTTON_TEXT,
+  },
+  scoreText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: THEME.TEXT_SECONDARY,
+    marginTop: 4,
+  },
+  version: {
+    color: THEME.TEXT_MUTED,
+    fontSize: 12,
+  },
+});
 </file>
 
 <file path="package.json">
@@ -1673,17 +3439,17 @@ module.exports = defineConfig([
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
+    "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@react-navigation/elements": "^2.6.3",
     "@react-navigation/native": "^7.1.8",
-    "@shopify/react-native-skia": "2.2.12",
     "expo": "~54.0.0",
     "expo-build-properties": "~1.0.10",
     "expo-constants": "~18.0.13",
@@ -1696,6 +3462,8 @@ module.exports = defineConfig([
     "expo-status-bar": "~3.0.9",
     "expo-symbols": "~1.0.8",
     "expo-system-ui": "~6.0.9",
+    "expo-tracking-transparency": "~6.0.8",
+    "expo-updates": "~29.0.16",
     "expo-web-browser": "~15.0.10",
     "lottie-react-native": "~7.3.1",
     "lucide-react-native": "^0.563.0",
@@ -1703,6 +3471,7 @@ module.exports = defineConfig([
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
     "react-native-gesture-handler": "~2.28.0",
+    "react-native-google-mobile-ads": "^16.0.3",
     "react-native-reanimated": "~4.1.1",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
@@ -1772,6 +3541,8 @@ Join our community of developers creating universal apps.
 
 - [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
 - [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+#   g r i d - g r i n  
+ 
 </file>
 
 <file path="tsconfig.json">

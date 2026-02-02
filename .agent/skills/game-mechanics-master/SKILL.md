@@ -7,6 +7,8 @@
 - Grid yerleşimi hesaplanırken `Math.round` ile en yakın hücreyi bul.
 - Yeni parça (shape) üretirken `src/utils/constants.ts` içindeki tanımları baz al.
 - Score hesaplamasında streak bonuslarını `processMove` algoritmasına göre uygula.
+- Animasyonlarda react-native-reanimated kullan.
+-
 
 ## Constraints
 
