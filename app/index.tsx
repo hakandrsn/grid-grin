@@ -1,5 +1,6 @@
 import { useGameStore } from "@/src/store/useGameStore";
 import { THEME } from "@/src/utils/constants";
+import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { requestTrackingPermissionsAsync } from "expo-tracking-transparency";
 import React, { useEffect } from "react";
@@ -20,7 +21,7 @@ export default function MainMenu() {
   }, []);
 
   useEffect(() => {
-    loadGame(); // Check for saved game on mount
+    loadGame();
   }, [loadGame]);
 
   const handleNewGame = () => {
@@ -38,53 +39,61 @@ export default function MainMenu() {
     <View
       style={[
         styles.container,
-        { paddingTop: top + 40, paddingBottom: bottom + 40 },
+        { paddingTop: top + 20, paddingBottom: bottom + 20 },
       ]}
     >
-      <Animated.Text
-        entering={FadeInDown.delay(200).springify()}
-        style={styles.title}
-      >
-        GRID GRIN
-      </Animated.Text>
+      {/* Top Section: Logo + Title */}
+      <View style={styles.topSection}>
+        <Animated.View entering={FadeInDown.delay(100).springify()}>
+          <Image
+            source={require("@/assets/images/icon.png")}
+            style={styles.logo}
+          />
+        </Animated.View>
 
-      {/* Leaderboard Section */}
-      <Animated.View
-        entering={FadeInDown.delay(300)}
-        style={styles.lbContainer}
-      >
-        <Text style={styles.bestLabel}>EN İYİ SKORLAR</Text>
-        <Text style={styles.bestScore}>{best}</Text>
+        <Animated.Text
+          entering={FadeInDown.delay(200).springify()}
+          style={styles.title}
+        >
+          GRID GRIN
+        </Animated.Text>
+        <Animated.View
+          entering={FadeInDown.delay(300)}
+          style={styles.lbContainer}
+        >
+          <Text style={styles.bestLabel}>EN İYİ SKORLAR</Text>
+          <Text style={styles.bestScore}>{best}</Text>
+          {second > 0 && <Text style={styles.secondScore}>{second}</Text>}
+          {third > 0 && <Text style={styles.thirdScore}>{third}</Text>}
+        </Animated.View>
+      </View>
 
-        {second > 0 && <Text style={styles.secondScore}>{second}</Text>}
+      {/* Bottom Section: Buttons + Version */}
+      <View style={styles.bottomSection}>
+        <Animated.View
+          entering={FadeInDown.delay(500).springify()}
+          style={styles.menuContainer}
+        >
+          {hasSavedGame && (
+            <TouchableOpacity
+              style={[styles.button, styles.continueButton]}
+              onPress={handleContinue}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.buttonText}>DEVAM ET</Text>
+              <Text style={styles.scoreText}>{score} Puan</Text>
+            </TouchableOpacity>
+          )}
 
-        {third > 0 && <Text style={styles.thirdScore}>{third}</Text>}
-      </Animated.View>
-
-      <Animated.View
-        entering={FadeInDown.delay(500).springify()}
-        style={styles.menuContainer}
-      >
-        {hasSavedGame && (
           <TouchableOpacity
-            style={[styles.button, styles.continueButton]}
-            onPress={handleContinue}
+            style={[styles.button, styles.newGameButton]}
+            onPress={handleNewGame}
             activeOpacity={0.8}
           >
-            <Text style={styles.buttonText}>DEVAM ET</Text>
-            <Text style={styles.scoreText}>{score} Puan</Text>
+            <Text style={[styles.buttonText, styles.newGameText]}>BAŞLA</Text>
           </TouchableOpacity>
-        )}
-
-        <TouchableOpacity
-          style={[styles.button, styles.newGameButton]}
-          onPress={handleNewGame}
-          activeOpacity={0.8}
-        >
-          <Text style={[styles.buttonText, styles.newGameText]}>BAŞLA</Text>
-        </TouchableOpacity>
-      </Animated.View>
-
+        </Animated.View>
+      </View>
       <Animated.Text entering={FadeInDown.delay(700)} style={styles.version}>
         v1.0.0
       </Animated.Text>
@@ -99,8 +108,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
+  topSection: {
+    alignItems: "center",
+    gap: 8,
+  },
+  logo: {
+    width: 140,
+    height: 140,
+  },
   title: {
-    fontSize: 64,
+    fontSize: 48,
     fontWeight: "900",
     color: THEME.TEXT_PRIMARY,
     letterSpacing: 4,
@@ -111,55 +128,53 @@ const styles = StyleSheet.create({
   },
   lbContainer: {
     alignItems: "center",
-    marginBottom: 20,
-    gap: 0, // Dikey boşlukları manuel kontrol edeceğiz veya gap verebiliriz
-    minHeight: 120, // Sabit bir alan kaplasın ki UI zıplamasın
-    justifyContent: "center",
+    gap: 4,
   },
   bestLabel: {
     color: THEME.TEXT_SECONDARY,
     fontSize: 14,
     fontWeight: "bold",
     letterSpacing: 2,
-    marginBottom: 8,
+    marginBottom: 4,
   },
   bestScore: {
     color: THEME.TEXT_PRIMARY,
-    fontSize: 56, // Biraz daha büyüttüm
+    fontSize: 56,
     fontWeight: "900",
     textShadowColor: "rgba(0,0,0,0.2)",
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
-    lineHeight: 64,
   },
   secondScore: {
-    color: THEME.TEXT_PRIMARY, // Biraz daha soluk olabilir ama primary kalsın
+    color: THEME.TEXT_PRIMARY,
     fontSize: 32,
     fontWeight: "800",
     opacity: 0.8,
-    marginTop: 4,
   },
   thirdScore: {
     color: THEME.TEXT_PRIMARY,
     fontSize: 24,
     fontWeight: "700",
     opacity: 0.6,
-    marginTop: 2,
+  },
+  bottomSection: {
+    width: "100%",
+    alignItems: "center",
+    gap: 20,
+    marginBottom: 60,
   },
   menuContainer: {
     width: "100%",
     paddingHorizontal: 40,
-    gap: 20,
+    gap: 16,
     alignItems: "center",
   },
   button: {
     width: "100%",
-    paddingVertical: 24,
-    borderRadius: 24,
+    paddingVertical: 20,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
-    elevation: 0, // No shadow
-    shadowOpacity: 0, // No shadow
   },
   continueButton: {
     backgroundColor: THEME.SURFACE_LIGHT,
@@ -170,7 +185,7 @@ const styles = StyleSheet.create({
     backgroundColor: THEME.BUTTON_PRIMARY,
   },
   buttonText: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "900",
     color: THEME.BUTTON_TEXT,
     letterSpacing: 1,
@@ -179,7 +194,7 @@ const styles = StyleSheet.create({
     color: THEME.BUTTON_TEXT,
   },
   scoreText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "700",
     color: THEME.TEXT_SECONDARY,
     marginTop: 4,
