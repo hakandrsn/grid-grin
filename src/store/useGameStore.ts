@@ -2,7 +2,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { create } from "zustand";
-import { BOARD_SIZE, SCORING, SHAPES } from "../utils/constants";
+import { BOARD_SIZE, SCORING, SHAPES, SHAPE_COLORS } from "../utils/constants";
 import { processMove } from "../utils/gameLogic";
 
 interface GameState {
@@ -200,16 +200,33 @@ export const useGameStore = create<GameState>((set, get) => ({
   clearMilestone: () => set({ milestoneEvent: null }),
 
   refreshPieces: (checkPlayability = false) => {
-    const colors = [
-      "#FF5733", // Red-Orange
-      "#33FF57", // Green
-      "#3357FF", // Blue
-      "#F333FF", // Pink/Purple
-      "#FFC300", // Gold/Yellow
-      "#00F5FF", // Cyan
-      "#FF33A1", // Hot Pink
+    const { board } = get(); // Board durumunu al
+
+    // Tüm şekiller
+    const allShapesKeys = Object.keys(SHAPES) as (keyof typeof SHAPES)[];
+
+    // Güvenli (Küçük) Şekiller - Kurtarıcılar
+    const safeShapesKeys: (keyof typeof SHAPES)[] = [
+      "DOT",
+      "LINE_2_H",
+      "LINE_2_V",
+      "SQUARE_2x2",
+      "L_SHAPE",
+      "L_SHAPE_2",
     ];
-    const shapesKeys = Object.keys(SHAPES) as (keyof typeof SHAPES)[];
+
+    // Board doluluk oranı hesapla
+    let filledCount = 0;
+    const totalCells = BOARD_SIZE * BOARD_SIZE;
+
+    for (let r = 0; r < BOARD_SIZE; r++) {
+      for (let c = 0; c < BOARD_SIZE; c++) {
+        if (board[r][c] !== null) filledCount++;
+      }
+    }
+
+    const occupancy = filledCount / totalCells;
+    const isCrowded = occupancy > 0.5; // %50'den fazlası doluysa "kalabalık"
 
     const doesPieceFit = (
       piece: number[][],
@@ -217,7 +234,6 @@ export const useGameStore = create<GameState>((set, get) => ({
     ) => {
       const boardSize = currentBoard.length;
       for (let r = 0; r <= boardSize - piece.length; r++) {
-        // DİKKAT: Burada da aynı hata olmasın diye <= yaptık (zaten doğruydu ama emin olalım)
         for (let c = 0; c <= boardSize - piece[0].length; c++) {
           let fits = true;
           for (let pr = 0; pr < piece.length; pr++) {
@@ -238,21 +254,40 @@ export const useGameStore = create<GameState>((set, get) => ({
       return false;
     };
 
-    const newPieces = [1, 2, 3].map(() => ({
-      id: Math.random().toString(36),
-      shape: SHAPES[shapesKeys[Math.floor(Math.random() * shapesKeys.length)]],
-      color: colors[Math.floor(Math.random() * colors.length)],
-    }));
+    const newPieces = [1, 2, 3].map(() => {
+      let shapeKey: keyof typeof SHAPES;
+
+      if (isCrowded) {
+        // Eğer kalabalıksa, %65 ihtimalle güvenli parça ver
+        if (Math.random() < 0.65) {
+          shapeKey =
+            safeShapesKeys[Math.floor(Math.random() * safeShapesKeys.length)];
+        } else {
+          shapeKey =
+            allShapesKeys[Math.floor(Math.random() * allShapesKeys.length)];
+        }
+      } else {
+        // Normal durum: Tamamen rastgele
+        shapeKey =
+          allShapesKeys[Math.floor(Math.random() * allShapesKeys.length)];
+      }
+
+      // RENK ARTIK SABİT
+      return {
+        id: Math.random().toString(36),
+        shape: SHAPES[shapeKey],
+        color: SHAPE_COLORS[shapeKey],
+      };
+    });
 
     if (checkPlayability) {
-      const { board } = get();
       const isAnyPlayable = newPieces.some((p) => doesPieceFit(p.shape, board));
       if (!isAnyPlayable) {
         // En güvenli parça ile değiştir
         newPieces[0] = {
           id: Math.random().toString(36) + "_safe",
           shape: SHAPES.DOT,
-          color: colors[0],
+          color: SHAPE_COLORS.DOT,
         };
       }
     }

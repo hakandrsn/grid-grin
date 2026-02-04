@@ -1,5 +1,5 @@
 // src/components/Piece.tsx
-import React, { memo, useCallback, useRef } from "react";
+import React, { memo, useCallback, useEffect, useRef } from "react";
 import { StyleSheet, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
@@ -35,9 +35,19 @@ const Piece = ({
   const translateY = useSharedValue(0);
   const isDragging = useSharedValue(false);
 
+  const layoutTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (layoutTimeoutRef.current) clearTimeout(layoutTimeoutRef.current);
+    };
+  }, []);
+
   // Parçanın başlangıç pozisyonunu ölç
   const handleLayout = useCallback(() => {
-    setTimeout(() => {
+    if (layoutTimeoutRef.current) clearTimeout(layoutTimeoutRef.current);
+
+    layoutTimeoutRef.current = setTimeout(() => {
       pieceRef.current?.measureInWindow((x, y) => {
         if (x !== undefined && y !== undefined) {
           homeX.current = x;

@@ -1,4 +1,5 @@
 import { CustomSplashScreen } from "@/src/components/Splash/CustomSplashScreen";
+import { THEME } from "@/src/utils/constants";
 import { Stack } from "expo-router";
 import { useState } from "react";
 import { StatusBar } from "react-native";
@@ -12,9 +13,17 @@ export default function RootLayout() {
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView
+      style={{ flex: 1, backgroundColor: THEME.BACKGROUND }}
+    >
       <StatusBar barStyle="light-content" />
-      <Stack screenOptions={{ headerShown: false }} />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: THEME.BACKGROUND },
+          animation: "fade", // Optional: Fades usually look better than slides for this type of game
+        }}
+      />
     </GestureHandlerRootView>
   );
 }

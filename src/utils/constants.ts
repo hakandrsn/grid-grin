@@ -14,8 +14,14 @@ export const SHAPES = {
     [1, 1, 1],
     [1, 1, 1],
   ],
+  LINE_2_H: [[1, 1]],
+  LINE_2_V: [[1], [1]],
   LINE_3_H: [[1, 1, 1]],
   LINE_3_V: [[1], [1], [1]],
+  LINE_4_H: [[1, 1, 1, 1]],
+  LINE_4_V: [[1], [1], [1], [1]],
+  LINE_5_H: [[1, 1, 1, 1, 1]],
+  LINE_5_V: [[1], [1], [1], [1], [1]],
   L_SHAPE: [
     [1, 0],
     [1, 0],
@@ -52,16 +58,51 @@ export const SHAPES = {
     [1, 1],
     [0, 1],
   ],
-  R_LEFT: [
-    [1, 0],
-    [1, 1],
-    [1, 1],
-  ],
   R_RIGHT: [
     [0, 1],
     [1, 1],
-    [0, 1],
   ],
+  R_LEFT: [
+    [1, 0],
+    [1, 1],
+  ],
+};
+
+export const SHAPE_COLORS: Record<keyof typeof SHAPES, string> = {
+  // 1-Cell
+  DOT: "#FFC107", // Amber (More vivid than Sunflower)
+
+  // 2x2 & 3x3 Squares
+  SQUARE_2x2: "#FF5252", // Red Accent (Brighter than Alizarin)
+  SQUARE_3x3: "#D32F2F", // Red 700 (Rich red)
+
+  // Lines (Green/Teal Spectrum)
+  LINE_2_H: "#00E676", // Green Accent (Vivid)
+  LINE_2_V: "#00E676", // Green Accent
+  LINE_3_H: "#1DE9B6", // Teal Accent (Vivid)
+  LINE_3_V: "#1DE9B6", // Teal Accent
+  LINE_4_H: "#00BFA5", // Teal 700 (Rich)
+  LINE_4_V: "#00BFA5", // Teal 700
+  LINE_5_H: "#00C853", // Green 800 (Deep & Vivid)
+  LINE_5_V: "#00C853", // Green 800
+
+  // L-Shapes (Pink/Purple Spectrum)
+  L_SHAPE: "#E040FB", // Purple Accent (Bright)
+  L_SHAPE_2: "#AA00FF", // Purple 900 (Deep & Bright)
+
+  // Z-Shapes (Orange Spectrum)
+  Z_SHAPE: "#FF9100", // Orange Accent
+  Z_SHAPE_2: "#FF6D00", // Orange Accent (Darker)
+
+  // T-Shapes (Blue Spectrum)
+  T_SHAPE: "#2979FF", // Blue Accent
+  T_REVERSED: "#2962FF", // Blue 800
+  T_LEFT: "#304FFE", // Indigo Accent
+  T_RIGHT: "#3D5AFE", // Indigo Accent
+
+  // R-Shapes (Cyan/Turquoise Spectrum)
+  R_RIGHT: "#00D2D3", // Bright Turquoise
+  R_LEFT: "#0097e6", // Prodigal Blue
 };
 
 export const THEME = {

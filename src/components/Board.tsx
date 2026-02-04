@@ -64,9 +64,19 @@ export const Board = () => {
       // transform: [{ translateX: shake.value }] // REMOVED SHAKE
     };
   });
+  const layoutTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (layoutTimeoutRef.current) clearTimeout(layoutTimeoutRef.current);
+    };
+  }, []);
+
   const handleLayout = () => {
     // Measure the exact position of gridInner where cells actually start
-    setTimeout(() => {
+    if (layoutTimeoutRef.current) clearTimeout(layoutTimeoutRef.current);
+
+    layoutTimeoutRef.current = setTimeout(() => {
       viewRef.current?.measureInWindow((x, y, width) => {
         if (width > 0) {
           // Now x,y points to where cells begin (inside padding)

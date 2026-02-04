@@ -1,55 +1,28 @@
 # Grid Grin
 
-A block puzzle game built with React Native and Expo. Place pieces on a 9x9 grid, complete rows and columns to clear them, and build up your streak for bonus points!
+Grid Grin is a polished, high-performance block puzzle game built with React Native and Expo.
 
 ## Features
 
-- 🎮 Classic block puzzle gameplay
-- 🔥 Streak system with multiplier bonuses
-- 🏆 Local leaderboard (top 3 scores)
-- 💾 Auto-save progress
-- 📺 Ad integration (banner & interstitial)
-- 🎨 Dark theme with animations
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js 18+
-- npm or yarn
-- Expo CLI
-
-### Installation
-
-```bash
-npm install
-```
-
-### Development
-
-```bash
-npx expo start
-```
-
-### Build
-
-```bash
-# Android
-eas build -p android
-
-# iOS
-eas build -p ios
-```
+- **Smooth Animations**: Powered by `react-native-reanimated` for fluid interactions (snapping, streak pop-ins).
+- **State Management**: `zustand` for efficient and reactive game state handling.
+- **Gestures**: `react-native-gesture-handler` for precise drag-and-drop mechanics.
+- **Ads**: Integrated AdMob support via `react-native-google-mobile-ads` (interstitials and banners).
 
 ## Tech Stack
 
-- **Framework**: React Native + Expo
-- **State Management**: Zustand
-- **Animations**: react-native-reanimated
-- **Gestures**: react-native-gesture-handler
-- **Ads**: react-native-google-mobile-ads
-- **Storage**: @react-native-async-storage
+- **Framework**: React Native (Expo)
+- **Language**: TypeScript
+- **State**: Zustand
+- **Animations**: Reanimated v3
+- **Gestures**: Gesture Handler
+- **Storage**: Async Storage
 
-## License
+## Getting Started
 
-MIT
+1.  pnpm install
+2.  npx expo start --clear
+
+## Project Structure
+
+See [structure.md](structure.md) for a detailed file breakdown.

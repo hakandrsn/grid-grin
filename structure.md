@@ -1,59 +1,29 @@
 # Project Structure
 
-## Root
+## App (`/app`)
 
-```
-grid-grin/
-├── app/                      # Expo Router pages
-├── src/                      # Source code
-├── assets/                   # Static assets
-├── services/                 # External services
-├── .agent/                   # Agent workflows
-├── app.json                  # Expo config
-├── eas.json                  # EAS Build config
-├── package.json              # Dependencies
-└── tsconfig.json             # TypeScript config
-```
+- `_layout.tsx`: Root layout configuration.
+- `index.tsx`: Main Menu screen.
+- `game.tsx`: Main Game screen.
 
-## App Pages (`app/`)
+## Source (`/src`)
 
-- `_layout.tsx` (Root layout with splash screen)
-- `index.tsx` (Main menu screen)
-- `game.tsx` (Game play screen)
+### Components (`/src/components`)
 
-## Source Code (`src/`)
+- `Board.tsx`: The main game grid container (View logic).
+- `Cell.tsx`: Individual grid cell (Memoized, handles animations).
+- `Piece.tsx`: Draggable game pieces (Gesture logic).
+- `ScoreBoard.tsx`: Displays current score and streak.
+- `StreakOverlay.tsx`: Displays visual feedback for streaks and milestones.
+- `GameOverOverlay.tsx`: End-game modal with score and actions.
+- `ads/GameBannerAd.tsx`: Component wrapper for Banner Ads.
 
-### Components (`src/components/`)
+### Store (`/src/store`)
 
-- `Board.tsx` (9x9 game grid with animated border)
-- `Cell.tsx` (Single grid cell with puff animation)
-- `Piece.tsx` (Draggable puzzle piece)
-- `ScoreBoard.tsx` (Score and streak display)
-- `GameOverOverlay.tsx` (Game over modal with options)
-- `StreakOverlay.tsx` (Streak celebration images)
-- `PuffExplosion.tsx` (Cell clear particle effect)
-- `Splash/CustomSplashScreen.tsx` (Animated splash screen)
-- `ads/GameBannerAd.tsx` (Banner ad wrapper)
+- `useGameStore.ts`: Central game state (Board data, score, logic actions).
+- `adStore.ts`: Manages ad loading and display logic.
 
-### Store (`src/store/`)
+### Utils (`/src/utils`)
 
-- `useGameStore.ts` (Main game state: board, score, pieces)
-- `adStore.ts` (Ad timing and state management)
-
-### Utils (`src/utils/`)
-
-- `constants.ts` (Theme, shapes, scoring, cell size)
-- `gameLogic.ts` (Move processing, line clearing)
-
-### Types (`src/types/`)
-
-- `index.ts` (Shared TypeScript types)
-
-## Services (`services/`)
-
-- `adManager.ts` (Interstitial ad loading/showing)
-
-## Assets (`assets/images/`)
-
-- `streak/` (Celebration images: good, sweet, perfect)
-- App icons and splash images
+- `constants.ts`: Global constants (Colors, Board Size, Scoring rules).
+- `gameLogic.ts`: Pure functions for game rules (Move processing, line clearing).

@@ -5,7 +5,7 @@ import Animated, {
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
-  withSpring,
+  withSequence,
   withTiming,
 } from "react-native-reanimated";
 import { useGameStore } from "../store/useGameStore";
@@ -24,8 +24,7 @@ export const StreakOverlay = () => {
   const clearMilestone = useGameStore((state) => state.clearMilestone);
 
   const [activeImage, setActiveImage] = useState<any>(null);
-  const isAnimating = useRef(false); // Animasyon kilidi
-  const lastShownStreak = useRef(0); // Son gösterilen streak
+  const lastShownStreak = useRef(0);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const scale = useSharedValue(0);
@@ -33,27 +32,35 @@ export const StreakOverlay = () => {
   const opacity = useSharedValue(0);
 
   useEffect(() => {
-    // Animasyon zaten oynatılıyorsa çık
-    if (isAnimating.current) return;
-
     let img = null;
     let shouldShow = false;
 
-    // 1. Milestone Öncelikli (Rekor)
+    // 1. Milestone Priority (High Priority)
     if (milestoneEvent) {
       if (milestoneEvent === "sweet") img = STREAK_IMAGES.sweet;
       else if (milestoneEvent === "good") img = STREAK_IMAGES.good;
       else if (milestoneEvent === "perfect") img = STREAK_IMAGES.perfect;
-      shouldShow = true;
-      clearMilestone(); // Event'i resetle
+
+      shouldShow = !!img;
+      // Milestone gösterildiğinde streak'i de "görmüş" sayalım ki
+      // arkasından hemen bir daha streak animasyonu (örn: good) tetiklenmesin
+      if (shouldShow) {
+        lastShownStreak.current = streak;
+        // Event'i store'dan temizle ki sürekli tekrar etmesin
+        clearMilestone();
+      }
     }
-    // 2. Normal Streak - sadece yeni streak'te göster
+    // 2. Streak Priority (Low Priority - eğer milestone yoksa)
     else if (streak >= 2 && streak > lastShownStreak.current) {
       if (streak >= 10) img = STREAK_IMAGES.perfect_streak;
       else if (streak >= 7) img = STREAK_IMAGES.perfect;
       else if (streak >= 4) img = STREAK_IMAGES.sweet;
       else if (streak >= 2) img = STREAK_IMAGES.good;
-      shouldShow = true;
+
+      shouldShow = !!img;
+      if (shouldShow) {
+        lastShownStreak.current = streak;
+      }
     }
 
     // Streak sıfırlanırsa tracker'ı resetle
@@ -62,38 +69,52 @@ export const StreakOverlay = () => {
     }
 
     if (shouldShow && img) {
-      // Önceki timeout'u temizle
+      // Önceki bekleyen kapanma işlemini iptal et
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
 
-      isAnimating.current = true;
-      lastShownStreak.current = streak;
-
+      // Yeni imajı set et
       setActiveImage(img);
+
+      // Animasyon Değerlerini Sıfırla (Re-trigger)
       scale.value = 0;
-      translateY.value = 50;
+      translateY.value = 50; // Hafif aşağıdan gelsin
       opacity.value = 1;
 
-      scale.value = withSpring(1, { damping: 12 });
-      translateY.value = withSpring(0, { damping: 12 });
+      // Animasyonu Başlat: Küçükten büyüyüp (1.2), hafif küçülüp (1.0) duracak.
+      // Easing.out(Easing.quad) varsayılan olarak withTiming içinde kullanılabilir,
+      // ama default linear/quad arası genelde iyidir.
+      scale.value = withSequence(
+        withTiming(1.2, { duration: 250 }), // Hızlıca büyü
+        withTiming(1, { duration: 150 }), // Hafifçe yerine otur
+      );
 
-      // 1.5 saniye sonra kaybol
+      // Y ekseni de smooth bir şekilde yerine gelsin, bounce olmadan
+      translateY.value = withTiming(0, { duration: 300 });
+
+      // 1.5 saniye sonra kapat
       timeoutRef.current = setTimeout(() => {
         opacity.value = withTiming(0, { duration: 300 }, () => {
           runOnJS(setActiveImage)(null);
         });
-        isAnimating.current = false;
       }, 1500);
     }
 
     return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
+      // Unmount veya re-run durumunda timeout temizliği
+      // Ancak buraya dikkat: useEffect dependency değişiminde animasyonu kesmemeliyiz
+      // Sadece component unmount oluyorsa temizleyelim mi?
+      // Hayır, yeni efekt geldiğinde üstteki `if (shouldShow)` bloğu zaten timeout'u temizliyor.
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [streak, milestoneEvent]); // Sadece streak ve milestone değiştiğinde tetikle
+  }, [streak, milestoneEvent]); // Store değişimlerini dinle
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
 
   const style = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }, { translateY: translateY.value }],
