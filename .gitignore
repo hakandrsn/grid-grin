@@ -45,3 +45,5 @@ app-example
 *.ipa
 *.apk
 *.aab
+
+*repomix*
