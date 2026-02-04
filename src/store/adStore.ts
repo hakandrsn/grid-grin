@@ -9,7 +9,7 @@ export const AD_RULES = {
   // Interstitial rules
   interstitial: {
     excludedLevels: [] as { chapterId: number; levelId: number }[], // No exclusions for infinite mode
-    minTimeBetweenAds: 120000, // 2 minutes between interstitial ads
+    minTimeBetweenAds: 300000, // 5 minutes between interstitial ads
     showOnLevelEntry: false,
   },
 

@@ -30,7 +30,7 @@ export const GameOverOverlay = ({
 
   const [phase, setPhase] = useState<"splash" | "menu">("splash");
   const [loadingAd, setLoadingAd] = useState(false);
-  const { markInterstitialShown } = useAdActions();
+  const { markInterstitialShown, canShowInterstitial } = useAdActions();
   const isAdReady = useAdStore((state) => state.isInterstitialReady);
 
   const modalScale = useSharedValue(0);
@@ -60,7 +60,15 @@ export const GameOverOverlay = ({
 
   const rankInfo = getRankInfo();
 
-  const handleNewGame = () => {
+  const handleNewGame = async () => {
+    // Yeni oyun başlatırken reklam kontrolü (5 dk cooldown)
+    if (canShowInterstitial(0, 0)) {
+      try {
+        await showInterstitial();
+      } catch (e) {
+        console.log("Ad failed silently, continuing to reset");
+      }
+    }
     onReset();
   };
 

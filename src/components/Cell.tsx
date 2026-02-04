@@ -33,6 +33,7 @@ const Cell = ({ row, col, color }: CellProps) => {
 
   useEffect(() => {
     // 1. Silinme (Puff) & Flash Animasyonu
+    // Sadece renk null olduğunda ve önceki renk doluysa çalışsın
     if (color === null && prevColor.current !== null) {
       // Cell: Hafifçe büyüyüp içine çökme (Implosion effect)
       blockScale.value = withSequence(
@@ -50,20 +51,25 @@ const Cell = ({ row, col, color }: CellProps) => {
         easing: Easing.out(Easing.quad),
       });
       flashOpacity.value = withTiming(0, { duration: 300 });
+
+      // Referansı güncelle
+      prevColor.current = null;
     }
     // 2. Yeni blok yerleştirildiğinde (Animasyonsuz, direkt görünüm)
     else if (color !== null && prevColor.current === null) {
       blockScale.value = 1;
       blockOpacity.value = 1;
+      // Flash sıfırla
+      flashOpacity.value = 0;
+      prevColor.current = color;
     }
-    // 3. Başlangıç veya Reset durumu
-    else if (color !== null) {
+    // 3. Başlangıç veya Reset durumu (Renk değişimi varsa)
+    else if (color !== null && color !== prevColor.current) {
       blockScale.value = 1;
       blockOpacity.value = 1;
+      prevColor.current = color;
     }
-
-    prevColor.current = color;
-  }, [color, blockOpacity, blockScale, flashOpacity, flashScale]);
+  }, [color]); // Dependency array minimized
 
   const animatedBlockStyle = useAnimatedStyle(() => {
     return {
