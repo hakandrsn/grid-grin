@@ -65,14 +65,7 @@ export const processMove = (
   let moveScore = cellsPlaced * SCORING.BASE_CELL;
 
   if (totalLines > 0) {
-    let lineBonus = totalLines * SCORING.LINE_CLEAR;
-    // Multi-line bonus (2 satır silmek 1+1'den daha değerli olmalı)
-    lineBonus = Math.floor(
-      lineBonus * Math.pow(totalLines, SCORING.MULTI_LINE_EXP - 1),
-    );
-
-    // Cross bonus
-    if (isCross) lineBonus *= SCORING.CROSS_BONUS;
+    let lineBonus = totalLines * SCORING.SINGLE_LINE;
 
     // Streak bonus (Üst üste hamleler)
     moveScore += lineBonus * (1 + currentStreak * 0.5);

@@ -24,6 +24,7 @@ const Piece = ({
   const onDrop = useGameStore((state) => state.onDrop);
   const boardLayout = useGameStore((state) => state.boardLayout);
   const canPlacePiece = useGameStore((state) => state.canPlacePiece);
+  const setIsDragging = useGameStore((state) => state.setIsDragging);
 
   // Screen Dimensions for Slot Calculation
   const { width } = Dimensions.get("window");
@@ -74,9 +75,11 @@ const Piece = ({
   }, []);
 
   const gesture = Gesture.Pan()
+    .hitSlop({ vertical: 30, horizontal: 30 })
     .runOnJS(true)
     .onStart(() => {
       isDragging.value = true;
+      setIsDragging(true);
       // Sürüklemeye başlarken %100 veya %110 boyuta getir
       scale.value = withTiming(1, { duration: 200 });
     })
@@ -86,6 +89,7 @@ const Piece = ({
     })
     .onEnd((e) => {
       isDragging.value = false;
+      setIsDragging(false);
 
       let placed = false;
       if (boardLayout && homeX.current !== 0) {

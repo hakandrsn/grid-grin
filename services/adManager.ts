@@ -39,13 +39,6 @@ const getInterstitialId = () => {
     : AD_CONFIG.interstitial.android;
 };
 
-const getRewardedId = () => {
-  if (__DEV__ && TestIds) return TestIds.REWARDED;
-  return Platform.OS === "ios"
-    ? AD_CONFIG.rewarded.ios
-    : AD_CONFIG.rewarded.android;
-};
-
 // ==========================================
 // AD INSTANCES
 // ==========================================
@@ -136,43 +129,6 @@ export const showInterstitial = async (): Promise<boolean> => {
 // REWARDED ADS
 // ==========================================
 
-export const loadRewarded = () => {
-  if (!isAdMobAvailable || !RewardedAd) {
-    console.log("📺 AdMob not available, skipping rewarded load");
-    return;
-  }
-
-  try {
-    rewardedAd = RewardedAd.createForAdRequest(getRewardedId());
-
-    rewardedAd.addAdEventListener(RewardedAdEventType.LOADED, () => {
-      isRewardedLoaded = true;
-      useAdStore.getState().actions.setRewardedReady(true);
-      console.log("🎁 Rewarded loaded");
-    });
-
-    rewardedAd.addAdEventListener(RewardedAdEventType.EARNED_REWARD, () => {
-      console.log("🎁 Reward earned");
-    });
-
-    rewardedAd.addAdEventListener(AdEventType.CLOSED, () => {
-      isRewardedLoaded = false;
-      useAdStore.getState().actions.setRewardedReady(false);
-      loadRewarded(); // Preload next
-    });
-
-    rewardedAd.addAdEventListener(AdEventType.ERROR, (error: any) => {
-      console.log("🎁 Rewarded error:", error);
-      isRewardedLoaded = false;
-      useAdStore.getState().actions.setRewardedReady(false);
-    });
-
-    rewardedAd.load();
-  } catch (error) {
-    console.log("🎁 Rewarded init error:", error);
-  }
-};
-
 export const showRewarded = (): Promise<boolean> => {
   if (!isAdMobAvailable || !isRewardedLoaded || !rewardedAd) {
     console.log("🎁 Rewarded not ready");
@@ -226,17 +182,27 @@ export const showRewarded = (): Promise<boolean> => {
 // INITIALIZATION
 // ==========================================
 
+let isInitialized = false;
+
 // PERFORMANCE: Deferred initialization to prevent blocking splash/animations
 export const initializeAds = () => {
+  if (isInitialized) return; // Prevent double init
+
   if (!isAdMobAvailable) {
     console.log("📺 AdMob not available, skipping initialization");
     return;
   }
 
+  isInitialized = true;
+
   // Defer ad loading to prevent JS bridge contention during startup
   // This allows splash screen and initial animations to complete smoothly
-  setTimeout(() => {
+  setTimeout(async () => {
     console.log("📺 Initializing ads (deferred)...");
+
+    // Ensure persistence is loaded first, then init timer
+    await useAdStore.getState().actions.loadAdState();
+    useAdStore.getState().actions.initializeAdTimer();
 
     // Families Policy Configuration
     if (isAdMobAvailable) {
@@ -256,10 +222,8 @@ export const initializeAds = () => {
     }
 
     loadInterstitial();
-    loadRewarded();
   }, 1500); // 1.5s delay after app is interactive
 };
 
 export const isInterstitialReady = () =>
   isAdMobAvailable && isInterstitialLoaded;
-export const isRewardedReady = () => isAdMobAvailable && isRewardedLoaded;

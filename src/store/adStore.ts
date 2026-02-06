@@ -8,9 +8,7 @@ import { create } from "zustand";
 export const AD_RULES = {
   // Interstitial rules
   interstitial: {
-    excludedLevels: [] as { chapterId: number; levelId: number }[], // No exclusions for infinite mode
     minTimeBetweenAds: 300000, // 5 minutes between interstitial ads
-    showOnLevelEntry: false,
   },
 
   // Rewarded rules
@@ -21,13 +19,6 @@ export const AD_RULES = {
   // Banner rules
   banner: {
     showInGame: true, // Show banner at top of game screen
-    showInChapters: false, // Don't show banner in chapters (use native ads instead)
-  },
-
-  // Native ads rules
-  native: {
-    showInChapters: true, // Show native ad in chapters screen
-    showEveryNChapters: 4, // Show ad after every 4 chapters
   },
 };
 
@@ -56,7 +47,7 @@ interface AdState {
 
 interface AdActions {
   // Interstitial
-  canShowInterstitial: (chapterId: number, levelId: number) => boolean;
+  canShowInterstitial: () => boolean;
   markInterstitialShown: () => void;
   setInterstitialReady: (ready: boolean) => void;
 
@@ -68,9 +59,7 @@ interface AdActions {
   // Banner
   canShowBanner: () => boolean;
   setBannerReady: (ready: boolean) => void;
-
-  // Native
-  shouldShowNativeAdAtIndex: (index: number) => boolean;
+  initializeAdTimer: () => void;
 
   // Persistence
   loadAdState: () => Promise<void>;
@@ -118,28 +107,23 @@ export const useAdStore = create<AdStore>((set, get) => ({
     // INTERSTITIAL ADS
     // ==========================================
 
-    canShowInterstitial: (chapterId: number, levelId: number) => {
+    canShowInterstitial: () => {
       const state = get();
-
-      // Check if this level is excluded
-      const isExcluded = AD_RULES.interstitial.excludedLevels.some(
-        (excluded) =>
-          excluded.chapterId === chapterId && excluded.levelId === levelId,
-      );
-
-      if (isExcluded) {
-        return false;
-      }
 
       // Check if enough time has passed
       const now = Date.now();
       const timeSinceLastAd = now - state.lastInterstitialShown;
-      if (timeSinceLastAd < AD_RULES.interstitial.minTimeBetweenAds) {
+
+      const isTimeReady =
+        timeSinceLastAd >= AD_RULES.interstitial.minTimeBetweenAds;
+      const isAdLoaded = state.isInterstitialReady;
+
+      if (!isTimeReady) {
         return false;
       }
 
       // Check if ad is ready
-      if (!state.isInterstitialReady) {
+      if (!isAdLoaded) {
         return false;
       }
 
@@ -205,17 +189,13 @@ export const useAdStore = create<AdStore>((set, get) => ({
       set({ isBannerReady: ready });
     },
 
-    // ==========================================
-    // NATIVE ADS
-    // ==========================================
-
-    shouldShowNativeAdAtIndex: (index: number) => {
-      if (!AD_RULES.native.showInChapters) return false;
-
-      // Show ad every N chapters (e.g., after chapter 4, 8, 12, etc.)
-      // Index is 0-based, so we add 1
-      const chapterNumber = index + 1;
-      return chapterNumber % AD_RULES.native.showEveryNChapters === 0;
+    initializeAdTimer: () => {
+      const state = get();
+      if (state.lastInterstitialShown === 0) {
+        set({ lastInterstitialShown: Date.now() });
+        get().actions.saveAdState();
+        console.log("📺 Ad timer initialized to NOW (first run delay)");
+      }
     },
 
     // ==========================================

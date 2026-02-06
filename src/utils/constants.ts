@@ -32,6 +32,14 @@ export const SHAPES = {
     [0, 1],
     [1, 1],
   ],
+  L_HORIZONTAL: [
+    [1, 1, 1],
+    [1, 0, 0],
+  ],
+  L_HORIZONTAL_2: [
+    [1, 1, 1],
+    [0, 0, 1],
+  ],
   Z_SHAPE: [
     [1, 1, 0],
     [0, 1, 1],
@@ -66,6 +74,14 @@ export const SHAPES = {
     [1, 0],
     [1, 1],
   ],
+  R_DOWN: [
+    [1, 1],
+    [1, 0],
+  ],
+  R_UP: [
+    [1, 1],
+    [0, 1],
+  ],
 };
 
 export const SHAPE_COLORS: Record<keyof typeof SHAPES, string> = {
@@ -89,7 +105,8 @@ export const SHAPE_COLORS: Record<keyof typeof SHAPES, string> = {
   // L-Shapes (Pink/Purple Spectrum)
   L_SHAPE: "#E040FB", // Purple Accent (Bright)
   L_SHAPE_2: "#AA00FF", // Purple 900 (Deep & Bright)
-
+  L_HORIZONTAL: "#E040FB", // Purple Accent (Bright)
+  L_HORIZONTAL_2: "#AA00FF", // Purple 900 (Deep & Bright)
   // Z-Shapes (Orange Spectrum)
   Z_SHAPE: "#FF9100", // Orange Accent
   Z_SHAPE_2: "#FF6D00", // Orange Accent (Darker)
@@ -103,6 +120,8 @@ export const SHAPE_COLORS: Record<keyof typeof SHAPES, string> = {
   // R-Shapes (Cyan/Turquoise Spectrum)
   R_RIGHT: "#00D2D3", // Bright Turquoise
   R_LEFT: "#0097e6", // Prodigal Blue
+  R_DOWN: "#00D2D3", // Bright Turquoise
+  R_UP: "#0097e6", // Prodigal Blue
 };
 
 export const THEME = {

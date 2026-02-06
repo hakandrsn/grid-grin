@@ -19,6 +19,8 @@ interface GameState {
   milestoneEvent: "sweet" | "good" | "perfect" | null; // For UI feedback
   isGameOver: boolean;
   hasSavedGame: boolean;
+  isDragging: boolean;
+  setIsDragging: (dragging: boolean) => void;
   loadLeaderboard: () => Promise<void>;
 
   // Persistence
@@ -60,6 +62,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   milestoneEvent: null,
   isGameOver: false,
   hasSavedGame: false,
+  isDragging: false,
+  setIsDragging: (dragging: boolean) => set({ isDragging: dragging }),
 
   saveGame: async () => {
     const { board, score, streak, availablePieces, isGameOver } = get();
@@ -184,7 +188,11 @@ export const useGameStore = create<GameState>((set, get) => ({
           set({ board: result.newBoard });
           // Haptics'i ayrı yap, ana thread'i bloke etmesin
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          get().checkGameOver();
+
+          // Optimization: Defer heavy Game Over check to let "puff" animation start smoothly
+          setTimeout(() => {
+            get().checkGameOver();
+          }, 500);
         }, 100); // Daha uzun süre ver animasyon için
       });
     } else {
@@ -192,7 +200,11 @@ export const useGameStore = create<GameState>((set, get) => ({
       requestAnimationFrame(() => {
         set({ board: result.newBoard });
         Haptics.selectionAsync();
-        get().checkGameOver();
+
+        // Defer execution here as well for consistency
+        setTimeout(() => {
+          get().checkGameOver();
+        }, 500);
       });
     }
   },

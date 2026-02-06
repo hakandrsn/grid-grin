@@ -1,12 +1,21 @@
+import { showInterstitial } from "@/services/adManager";
 import GameBannerAd from "@/src/components/ads/GameBannerAd";
 import { GameOverOverlay } from "@/src/components/GameOverOverlay";
 import Piece from "@/src/components/Piece";
 import { StreakOverlay } from "@/src/components/StreakOverlay";
+import { useAdActions } from "@/src/store/adStore";
 import { useGameStore } from "@/src/store/useGameStore";
 import { Ionicons } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef } from "react";
-import { AppState, StyleSheet, TouchableOpacity, View } from "react-native";
+import {
+  AppState,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Board } from "../src/components/Board";
 import { ScoreBoard } from "../src/components/ScoreBoard";
@@ -25,6 +34,51 @@ export default function Game() {
   );
   const continueWithAd = useGameStore((state) => state.continueWithAd);
   const saveGame = useGameStore((state) => state.saveGame);
+  const { canShowInterstitial } = useAdActions();
+  const [adCountdown, setAdCountdown] = React.useState<number | null>(null);
+
+  // Ad Timer logic
+  useEffect(() => {
+    // Check every 5 seconds
+    const interval = setInterval(() => {
+      // 1. Is it time for an ad?
+      // 2. Are we NOT currently showing a countdown?
+      // 3. Is the user NOT dragging a piece?
+      if (
+        canShowInterstitial() &&
+        adCountdown === null &&
+        !useGameStore.getState().isDragging
+      ) {
+        setAdCountdown(3);
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [canShowInterstitial, adCountdown]);
+
+  // Countdown effect
+  useEffect(() => {
+    if (adCountdown === null) return;
+
+    if (adCountdown > 0) {
+      const timer = setTimeout(() => {
+        setAdCountdown((prev) => (prev ? prev - 1 : null));
+      }, 1000);
+      return () => clearTimeout(timer);
+    } else {
+      // Countdown reached 0
+      const showAd = async () => {
+        // Final safety check: if dragging, abort
+        if (useGameStore.getState().isDragging) {
+          setAdCountdown(null);
+        } else {
+          await showInterstitial();
+          setAdCountdown(null);
+        }
+      };
+      showAd();
+    }
+  }, [adCountdown]);
 
   // Initial Load (if coming directly or reload)
   useEffect(() => {
@@ -104,12 +158,25 @@ export default function Game() {
         style={{
           backgroundColor: THEME.BACKGROUND,
           width: "100%",
+          minHeight: 50,
         }}
       >
         <GameBannerAd />
       </View>
 
       <StreakOverlay />
+
+      {/* Ad Countdown Overlay - Premium Glassmorphism */}
+      {adCountdown !== null && (
+        <View style={styles.adCountdownWrapper} pointerEvents="none">
+          <BlurView intensity={20} tint="dark" style={styles.adCountdownBlur}>
+            <Ionicons name="time-outline" size={20} color={THEME.ACCENT} />
+            <Text style={styles.adCountdownLabel}>Reklam</Text>
+            <View style={styles.adSeparator} />
+            <Text style={styles.adCountdownText}>{adCountdown}</Text>
+          </BlurView>
+        </View>
+      )}
 
       {isGameOver && (
         <GameOverOverlay
@@ -187,4 +254,39 @@ const styles = StyleSheet.create({
   buttonContainer: { width: "80%", gap: 15 },
   actionButton: { padding: 20, borderRadius: 15, alignItems: "center" },
   actionButtonText: { color: "#000", fontWeight: "bold", fontSize: 16 },
+  adCountdownWrapper: {
+    position: "absolute",
+    top: 120,
+    alignSelf: "center",
+    zIndex: 9999,
+    borderRadius: 30,
+    overflow: "hidden", // Required for BlurView rounded corners
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
+  },
+  adCountdownBlur: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    gap: 12,
+    backgroundColor: "rgba(0,0,0,0.6)", // Slight tint on top of blur
+  },
+  adCountdownLabel: {
+    color: "#fff",
+    fontSize: 18, // Slightly larger
+    fontWeight: "600",
+    letterSpacing: 0.5,
+  },
+  adSeparator: {
+    width: 1,
+    height: 16,
+    backgroundColor: "rgba(255,255,255,0.2)",
+  },
+  adCountdownText: {
+    color: THEME.ACCENT,
+    fontSize: 26,
+    fontWeight: "900",
+    fontVariant: ["tabular-nums"], // Fixed width numbers to prevent jitter
+  },
 });
